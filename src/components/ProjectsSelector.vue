@@ -38,7 +38,7 @@ function getProjectsPerLanguage(langCode) {
           .allVersionsProjectsMeta"
         v-bind:key="langKey"
       >
-        <v-expansion-panel-title @click="console.log('xx')">
+        <v-expansion-panel-title>
           <div class="d-flex align-center" style="width: 100%">
             <div class="flex-grow-1">
               {{ meta.languageInfo.name }} ({{
