@@ -1,0 +1,12 @@
+{
+  "appName": "Lingo Nabanga",
+  "mainMenu": {
+    "aboutAppTitle": "À propos de @:appName",
+    "aboutAppText": "About @:appName",
+    "manage": "Gérer",
+    "aboutDictionary": "À propos de ce dictionnaire"
+  },
+  "manage": {
+    "heading": "Importer données"
+  }
+}

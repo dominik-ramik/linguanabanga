@@ -1,0 +1,12 @@
+{
+  "appName": "Lingo Nabanga",
+  "mainMenu": {
+    "aboutAppTitle": "O @:appName",
+    "aboutAppText": "About @:appName",
+    "manage": "Spravovat",
+    "aboutDictionary": "O tomto slovníku"
+  },
+  "manage": {
+    "heading": "Import dat"
+  }
+}

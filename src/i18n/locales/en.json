@@ -1,0 +1,13 @@
+{
+  "appName": "Lingo Nabanga",
+  "mainMenu": {
+    "learning": "Learning tools",
+    "aboutDictionary": "About this dictionary",
+    "aboutAppTitle": "About @:appName",
+    "aboutAppText": "This app has been originally created for *Plants mo Pipol blong Vanuatu* research project ...",
+    "settings": "Settings"
+  },
+  "manage": {
+    "heading": "Import data"
+  }
+}
