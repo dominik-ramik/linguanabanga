@@ -2063,6 +2063,17 @@ export let dictionaryDataStructure = {
                                 supportsMultilingual: false
                             }
                         },
+                        filter: {
+                            name: "Filter",
+                            description: "",
+                            integrity: {
+                                description: "",
+                                allowDuplicates: "yes",
+                                allowEmpty: true,
+                                allowedContent: "any",
+                                supportsMultilingual: false
+                            }
+                        },
                     }
                 },
             }
