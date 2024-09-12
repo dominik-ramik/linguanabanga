@@ -51,12 +51,11 @@ function getProjectsPerLanguage(langCode) {
               color="primary"
               class="mr-2"
               @click="changeLocale(langKey)"
-              v-if="
-                Object.keys(dictionaryStore.dictionary.allVersionsProjectsMeta)
-                  .length > 1 && langKey != i18n.global.locale.value
-              "
+              :disabled="langKey == i18n.global.locale.value"
             >
-              Switch to {{ meta.languageInfo.name }}
+            <div v-if="langKey != i18n.global.locale.value">Switch to {{ meta.languageInfo.name }}</div>
+            <div v-else>Your language is {{ meta.languageInfo.name }}</div>
+              
             </v-btn>
           </div>
         </v-expansion-panel-title>
