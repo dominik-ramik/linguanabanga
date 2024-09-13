@@ -6,13 +6,14 @@ import { micromark } from "micromark";
 import { highlightText } from "@/utils/highlightText";
 import { postprocessEncodedShortcode } from "@/utils/shortcodesProcessor.js";
 import { useAppSettingsStore } from "@/store/AppSettingsStore.js";
+import { ensureUniqueValues } from "@/utils/layoutFilters.js";
 
 const appSettings = useAppSettingsStore();
 const dictionaryStore = useDictionaryStore();
 
 const props = defineProps([
-  "passThroughData",
   "currentData",
+  "passThroughData",
   "layout",
   "lastIdProp",
   "lastTableTypeProp",
@@ -20,10 +21,45 @@ const props = defineProps([
 
 //Returns current data for cases when layout name is supplied (properties) or is not (each)
 const data = computed(() => {
-  if (props.layout && props.layout.name) {
-    return props.currentData[props.layout.name];
+  let tmpData = props.currentData;
+
+  if (props.layout.meta.filter) {
+    //layout filter is enabled, let's filter the currentData and passThroughData
+
+    let filterType = props.layout.meta.filter.split(":")[0];
+    let filterParams = props.layout.meta.filter.split(":")[1].split(",");
+
+    switch (filterType) {
+      case "unique":
+        console.log("Path is", filterParams[0])
+        console.log(
+          "::",
+          getDataByPath(props.currentData, filterParams[0])
+        );
+        
+        tmpData = ensureUniqueValues(
+          tmpData,
+          filterParams[0]
+        );
+        
+        console.log(
+          "::",
+          getDataByPath(tmpData, filterParams[0])
+        );
+        console.log("--");
+
+        break;
+
+      default:
+        console.error("Unknown filterType " + filterType);
+        break;
+    }
   }
-  return props.currentData;
+
+  if (props.layout && props.layout.name) {
+    return tmpData[props.layout.name];
+  }
+  return tmpData;
 });
 
 const lastId = data.value?.id || props.lastIdProp;
@@ -172,6 +208,7 @@ function postprocessStringData(text, options) {
 }
 
 import NavigationChip from "@/components/SearchResults/NavigationChip.vue";
+import getDataByPath from "@/utils/GetDataByPath";
 function postCode(text) {
   return postprocessEncodedShortcode(
     text,
@@ -228,7 +265,11 @@ function postCode(text) {
               paramsOfRenderAs[0]
             )
             .map((r) => {
-              return { id: r.id, main: r.main?.join('/'), languageName: r.languageName };
+              return {
+                id: r.id,
+                main: r.main?.join('/'),
+                languageName: r.languageName,
+              };
             })
         "
         :maxItemsShown="10"
