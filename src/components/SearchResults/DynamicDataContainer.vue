@@ -31,22 +31,10 @@ const data = computed(() => {
 
     switch (filterType) {
       case "unique":
-        console.log("Path is", filterParams[0])
-        console.log(
-          "::",
-          getDataByPath(props.currentData, filterParams[0])
-        );
-        
         tmpData = ensureUniqueValues(
           tmpData,
           filterParams[0]
         );
-        
-        console.log(
-          "::",
-          getDataByPath(tmpData, filterParams[0])
-        );
-        console.log("--");
 
         break;
 
