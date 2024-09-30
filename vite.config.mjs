@@ -58,13 +58,17 @@ export default defineConfig({
       filename: 'service-worker.js',
       registerType: null,
       includeAssets: ['assets/*.*'],
+      injectManifest: {
+        globPatterns: ['assets/*', 'favicons/*', 'screenshots/*', 'data/*.json', '*.{js,css,html,webmanifest}'], //, '**/*.{js,css,html,svg,ttf,woof,woof2,eot}', 'assets/*.*'],
+        maximumFileSizeToCacheInBytes: 100000000, //100mb file limit
+      },
       manifest: {
         // caches the assets/icons mentioned (assets/* includes all the assets present in your src/ directory) 
         name: 'Lingo Nabanga',
         short_name: 'Lingo Nabanga',
         id: "/",
         display_override: ["fullscreen", "minimal-ui"],
-        display: "standalone",
+        display: "fullscreen",
         start_url: '.',
         background_color: '#3b4997',
         theme_color: '#ffffff',

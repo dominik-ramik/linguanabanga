@@ -91,6 +91,8 @@ self.addEventListener('message', function (message) {
         getCachedUrls(DATA_ASSETS_CACHE).then((urls) => {
             communicationPort.postMessage({ type: 'CACHED_ASSETS', assets: urls });
         })
+    } else if (message.data && message.data.type == "CLEAR_DATA_ASSETS") {
+        caches.delete(DATA_ASSETS_CACHE);
     }
 });
 

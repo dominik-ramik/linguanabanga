@@ -48,7 +48,9 @@ async function downloadMissingAssets() {
     return;
   }
 
-  await fetch("/data/data.json");
+  const intervalGetCachedAssets = window.setInterval(() => {
+    getCachedAssets();
+  }, 5000);
 
   async function downloadInBatches(urls, parallelRequests = 4) {
     for (let i = 0; i < urls.length; i += parallelRequests) {
@@ -61,35 +63,41 @@ async function downloadMissingAssets() {
       const batch = urls.slice(i, i + parallelRequests);
 
       await Promise.allSettled(
-        batch.map((url) =>
-          fetch(url).then((response) => {
+        await batch.map(async function (url) {
+          if (breakDownload.value == true) {
+            breakDownload.value = false;
+            downloadingMissingAssets.value = false;
+            return;
+          }
+          downloadingMissingAssets.value = true;
+          await fetch(url).then((response) => {
             if (response.ok) {
-              response.blob().then(() => {
-                currentlyCachedAssets.value.push(encodeURI(url));
-                downloadingMissingAssets.value = true;
-              });
+              response.blob().then(() => {});
             } else {
               console.error(
                 `Failed to fetch ${url}: ${response.statusText}`,
                 response
               );
             }
-          })
-        )
+          });
+        })
       );
     }
   }
 
-  const parallelRequests = 2;
+  const parallelRequests = 5;
 
   try {
+    await fetch("/data/data.json");
+
     downloadInBatches(
       uncachedAssets.value.map((asset) => window.location.origin + asset.path),
       parallelRequests
     );
   } finally {
-    getCachedAssets();
     downloadingMissingAssets.value = false;
+    clearInterval(intervalGetCachedAssets.clear);
+    getCachedAssets();
   }
 }
 
@@ -97,6 +105,12 @@ function getCachedAssets() {
   navigator.serviceWorker.controller.postMessage({
     type: "GET_CACHED_ASSETS",
   });
+}
+function clearCache() {
+  navigator.serviceWorker.controller.postMessage({
+    type: "CLEAR_DATA_ASSETS",
+  });
+  getCachedAssets();
 }
 
 getCachedAssets();
@@ -142,12 +156,15 @@ onUnmounted(() => {
         </div>
       </v-tabs-window-item>
       <v-tabs-window-item value="offline" class="text-center">
-        <div v-if="currentlyCachedAssets == null">Checking cached assets ...</div>
+        <div v-if="currentlyCachedAssets == null">
+          Checking cached assets ...
+        </div>
         <div v-else-if="uncachedAssets.length > 0">
           <div v-if="downloadingMissingAssets">
             <v-progress-linear
               color="primary"
-              :model-value="assetsSize.uncachedAssets / assetsSize.allAssets"
+              indeterminate
+              :X-model-value="assetsSize.uncachedAssets / assetsSize.allAssets"
               :height="12"
               class="mt-3"
             ></v-progress-linear>
@@ -162,19 +179,34 @@ onUnmounted(() => {
               }}
               Mb / {{ assetsSize.allAssets }} Mb)
             </div>
-            <v-btn @click="breakDownload = true" color="primary" class="mt-3"
-              >Stop download</v-btn
-            >
+            <v-btn @click="breakDownload = true" color="primary" class="mt-3">{{
+              breakDownload ? "Stopping download" : "Stop download"
+            }}</v-btn>
           </div>
-          <div v-else-if="currentlyCachedAssets !== null">
+          <div
+            v-else-if="currentlyCachedAssets !== null"
+            class="d-flex flex-column"
+          >
             <div>
               To enable full offline use, you need to download
               {{ uncachedAssets.length }} assets (
-              {{ assetsSize.uncachedAssets }} Mb) to your device.
+              {{ assetsSize.uncachedAssets }} Mb) to your device (stay on this
+              screen while downloading).
             </div>
-            <v-btn @click="downloadMissingAssets" color="primary" class="mt-3"
-              >Download assets</v-btn
-            >
+            <div>
+              <v-btn @click="downloadMissingAssets" color="primary" class="mt-3"
+                >Download assets</v-btn
+              >
+            </div>
+            <div>
+              <div class="mt-16">
+                You can delete the cached assets if you need to reclaim memory
+                on your phone.
+              </div>
+              <div>
+                <v-btn @click="clearCache" color="primary">Clear memory</v-btn>
+              </div>
+            </div>
           </div>
         </div>
         <div v-else>All is ready for you to take this off the grid.</div>
