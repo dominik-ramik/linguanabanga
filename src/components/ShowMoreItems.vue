@@ -39,7 +39,7 @@ function toggleOpened() {
         variant="plain"
         prepend-icon="mdi-plus"
         density="compact"
-        >And {{ remainingItems.length }} more items</v-btn
+        >And {{ remainingItems.length }} more</v-btn
       >
     </div>
     <div v-else>
