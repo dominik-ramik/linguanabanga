@@ -136,6 +136,14 @@ onUnmounted(() => {
   downloadingMissingAssets.value = false;
   breakDownload.value = true;
 });
+
+const progress = computed(() => {
+  return 100 * (
+    (dictionaryStore.dictionary.preloadableAssets.length -
+      uncachedAssets.value.length) /
+    dictionaryStore.dictionary.preloadableAssets.length
+  );
+});
 </script>
 
 <template>
@@ -168,7 +176,7 @@ onUnmounted(() => {
             <v-progress-linear
               color="primary"
               X-indeterminate
-              :model-value="assetsSize.uncachedAssets / assetsSize.allAssets"
+              :model-value="progress"
               :height="12"
               class="mt-3"
             ></v-progress-linear>
