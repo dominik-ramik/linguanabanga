@@ -54,7 +54,7 @@ export let DictionaryDataImport = function () {
                 if (projects.length == 0) {
                     /*
                     the asset is referenced in non-project sheets or markdown files
-                    we could track down the references from the non-object sheets to see which projects reference them
+                    we could track down the references from the non-project sheets to see which projects reference them
                     and add the corresponding projects (e.g. an image from "people" could be tracked by the "people" entry
                     ID to see which dictionary projects reference this ID) but that is too laborious so here we
                     just add all projects to assets from non-project sheets so they are preloaded to all projects
