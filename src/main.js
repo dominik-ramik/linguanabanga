@@ -26,17 +26,19 @@ app.config.globalProperties.$messageChannel = messageChannel;
 app.use(i18n).mount('#app')
 
 // Register sevice worker
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
-        navigator.serviceWorker.ready
-            .then((registration) => {
-                // Open communication channel
-                registration.active.postMessage({ type: 'PORT_INITIALIZATION' }, [
-                    messageChannel.port2,
-                ]);
-            });
-    })
+if (import.meta.env.PROD) {
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+            navigator.serviceWorker.ready
+                .then((registration) => {
+                    // Open communication channel
+                    registration.active.postMessage({ type: 'PORT_INITIALIZATION' }, [
+                        messageChannel.port2,
+                    ]);
+                });
+        })
+    }
 }
 
 if (navigator.storage && navigator.storage.persist) {
