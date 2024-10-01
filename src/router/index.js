@@ -1,11 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import Search from '@/views/Search.vue'
-import Single from '@/views/Single.vue'
-import Learning from '@/views/Learning.vue'
+import SearchView from '@/views/SearchView.vue'
+import SingleView from '@/views/SingleView.vue'
+import LearningView from '@/views/LearningView.vue'
 import AboutApp from '@/views/AboutApp.vue'
 import AboutDictionary from '@/views/AboutDictionary.vue'
-import Settings from '@/views/Settings.vue'
+import SettingsView from '@/views/SettingsView.vue'
 
 import { i18n, inferLocale, isLocaleSupported, setLocale } from "@/i18n"
 import { useStorage } from '@vueuse/core'
@@ -25,17 +25,17 @@ const router = createRouter({
     {
       path: '/:locale/search/:table',
       name: 'search',
-      component: Search,
+      component: SearchView,
     },
     {
       path: '/:locale/view/:singleViewTable/:singleViewId',
       name: 'view',
-      component: Single,
+      component: SingleView,
     },
     {
       path: '/:locale/learn/:activity?',
       name: 'learning',
-      component: Learning,
+      component: LearningView,
     },
     {
       path: '/:locale/aboutApp',
@@ -50,11 +50,11 @@ const router = createRouter({
     {
       path: '/:locale/settings',
       name: 'settings',
-      component: Settings,
+      component: SettingsView,
     }
   ],
   history: createWebHistory(import.meta.env.BASE_URL),
-  scrollBehavior(to, from, savedPosition) {
+  scrollBehavior() {
     return { top: 0 }
   },
 })
