@@ -1,9 +1,33 @@
-export function ensureUniqueValues(obj, path) {
+import traverseData from '@/utils/traverseData'
 
+export function ensureUniqueValues(obj, path) {
     obj = JSON.parse(JSON.stringify(obj));
+    path = path.replaceAll("#", "").toLowerCase();
+
+    let uniques = []
+
+    traverseData(obj, {
+        remover: function (data) {
+            let serialized = deterministicStringify(data)
+
+            console.log("UQ", uniques)
+
+            if (uniques.includes(serialized)) {
+                return true
+            }
+            else {
+                uniques.push(serialized)
+                return false
+            }
+        },
+    }, path);
+
+    return obj
 
     const pathParts = path.split('.');
     const uniqueValues = new Set();
+
+    if (path.includes("scientific")) console.log("x")
 
     function traverse(currentObj, currentPathIndex) {
         if (currentPathIndex === pathParts.length) {
@@ -14,8 +38,10 @@ export function ensureUniqueValues(obj, path) {
         const isArray = part.endsWith('#');
         const key = isArray ? part.slice(0, -1) : part;
 
+        //if (path.includes("scientific")) console.log("KEY", currentObj, key, currentPathIndex, pathParts.length)
+
         if (isArray && Array.isArray(currentObj[key])) {
-            currentObj[key].forEach((item, index) => {
+            currentObj[key].forEach((item) => {
                 traverse(item, currentPathIndex + 1);
             });
         } else if (currentObj[key] !== undefined) {
@@ -26,6 +52,7 @@ export function ensureUniqueValues(obj, path) {
     function removeDuplicates(currentObj, currentPathIndex) {
         if (currentPathIndex === pathParts.length) {
             if (typeof currentObj === 'string' || typeof currentObj === 'number') {
+
                 if (uniqueValues.has(currentObj)) {
                     return true;
                 } else {
@@ -34,7 +61,6 @@ export function ensureUniqueValues(obj, path) {
                 }
             }
             else {
-                console.log(pathParts)
                 let serialized = deterministicStringify(currentObj)
                 if (uniqueValues.has(serialized)) {
                     console.log("CurrentObject", currentObj)
@@ -46,12 +72,19 @@ export function ensureUniqueValues(obj, path) {
                     return false;
                 }
             }
-            return false;
         }
 
         const part = pathParts[currentPathIndex];
         const isArray = part.endsWith('#');
         const key = isArray ? part.slice(0, -1) : part;
+
+        if (key == pathParts[pathParts.length - 1] && currentPathIndex == pathParts.length - 1) {
+            currentObj = currentObj[key]
+            removeDuplicates(currentObj, currentPathIndex + 1);
+            return false;
+        }
+
+        if (path.includes("scientificName")) console.log(pathParts.length, currentPathIndex, pathParts, key)
 
         if (isArray && Array.isArray(currentObj[key])) {
             currentObj[key] = currentObj[key].filter((item) => !removeDuplicates(item, currentPathIndex + 1));
@@ -63,7 +96,7 @@ export function ensureUniqueValues(obj, path) {
         return false;
     }
 
-    traverse(obj, 0);
+    //traverse(obj, 0);
     removeDuplicates(obj, 0);
     return obj;
 }
