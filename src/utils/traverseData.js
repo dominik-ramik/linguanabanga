@@ -80,7 +80,6 @@ export default function traverseData(obj, options, pathHashless, accumulator, pa
 
                 if (remover && accumulator + "." + key == pathHashless && (typeof obj[key] === 'string' || obj[key] instanceof String)) {
                     if (remover(obj[key])) {
-                        console.log("DELETE", key, obj[key])
                         delete obj[key]
                     }
                 }
