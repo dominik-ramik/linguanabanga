@@ -149,7 +149,7 @@ export function useDictionaryFilter(useDictionary) {
                 let bMainPathData = getDataByPath(b, mainPath)
 
                 if (!aMainPathData || !bMainPathData || aMainPathData.length == 0 || bMainPathData.length == 0) {
-                    console.log("Cannot find " + mainPath)
+                    //console.log("Cannot find dataPath:", mainPath, a, b)
                     return 0
                 }
 
