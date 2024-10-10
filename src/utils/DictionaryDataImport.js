@@ -292,7 +292,7 @@ export let DictionaryDataImport = function () {
                 size = foundFile.size
             }
             else {
-                console.log("ERROR", path, otherFiles) //TODO put this to log
+                console.log("Missing file", path) //TODO put this to log
             }
 
             preloadableAssets.push({ path: path, size: size, tableName: [], lang: [] })
@@ -1105,7 +1105,7 @@ export let DictionaryDataImport = function () {
 
     function log(level, message) {
         //TODO enable log
-        return
+        //return
 
         let index = dictionaryDataImport.loggedMessages.findIndex(function (msg) {
             if (msg.level == "critical" || msg.level == "error") {
