@@ -316,6 +316,7 @@ export function unpackReferences(data, logFn, simulateOnly) {
                     if (typeof id === 'string' || id instanceof String) {
                         let linkedData = targetTableData.find((item) => item.id == id)
                         if (linkedData === undefined) {
+                            //TODO enable logfn
                             logFn && logFn("error", "Failed to find " + id + " (in path '" + path + "') in " + targetTableType)
                         }
                         if (!simulateOnly) {
