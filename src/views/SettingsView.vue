@@ -148,10 +148,10 @@ const progress = computed(() => {
 
 <template>
   <v-tabs v-model="tab" align-tabs="center">
+    <v-tab value="data">Data</v-tab>
     <v-tab value="projects">Language and projects</v-tab>
     <v-tab value="offline">Offfline use</v-tab>
     <v-tab value="theme">Theme</v-tab>
-    <v-tab value="data">Data</v-tab>
   </v-tabs>
 
   <v-card class="pa-3">
