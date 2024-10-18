@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed } from "vue";
 
+import imagePlaceholder from "@/assets/dot.png";
+
 const props = defineProps(["src", "additionalData", "additionalLayout"]);
 
 const imageUrls = computed(() => {
@@ -18,7 +20,13 @@ const currentFullSizeImage = computed(() => {
 
 const showDialog = ref(false);
 
-function showImage(index) {
+function showImage(index, currentImage) {
+  console.log("ss", imagePlaceholder, currentImage);
+  if (currentImage == imagePlaceholder) {
+    console.log("got");
+    return;
+  }
+
   currentFullSizeImageIndex.value = index;
   showDialog.value = true;
 }
@@ -34,7 +42,28 @@ function showImage(index) {
     style="background-color: rgba(0, 0, 0, 0.9)"
     @click="showDialog = false"
   >
-    <v-img :src="currentFullSizeImage" max-height="95vh" max-width="95vw" />
+    <v-img
+      :src="currentFullSizeImage"
+      :lazy-src="imagePlaceholder"
+      loading="lazy"
+      height="95vh"
+      max-height="95vh"
+      max-width="95vw"
+    >
+      <template v-slot:placeholder>
+        <div class="d-flex align-center justify-center fill-height">
+          <v-icon
+            color="warning"
+            icon="mdi-cloud-alert"
+            size="x-large"
+             class="mr-5"
+          ></v-icon>
+          <div>
+            Get online to view this picture
+          </div>
+        </div>
+      </template>
+    </v-img>
     <div
       v-if="props.additionalLayout?.properties && props.additionalData"
       style="
@@ -58,12 +87,23 @@ function showImage(index) {
   </v-dialog>
 
   <template v-for="(imageUrl, index) in imageUrls" v-bind:key="imageUrl">
-      <v-img
-        :src="imageUrl"
-        class="ma-1"
-        cover
-        style="display: inline-block; width: 6em; height: 6em"
-        @click="showImage(index)"
-      ></v-img>
+    <v-img
+      :src="imageUrl"
+      :lazy-src="imagePlaceholder"
+      class="ma-1"
+      cover
+      style="display: inline-block; width: 6em; height: 6em"
+      @click="showImage(index, this.src)"
+    >
+      <template v-slot:placeholder>
+        <div class="d-flex align-center justify-center fill-height">
+          <v-icon
+            color="warning"
+            icon="mdi-cloud-alert"
+            size="x-large"
+          ></v-icon>
+        </div>
+      </template>
+    </v-img>
   </template>
 </template>
