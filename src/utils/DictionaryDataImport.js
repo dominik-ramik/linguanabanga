@@ -41,42 +41,73 @@ export let DictionaryDataImport = function () {
             dictionary.versions[lang.code] = compileLanguageVersion(lang.code)
         })
 
-        dictionary.general.preloadableAssets = preloadableAssets.map((asset) => {
-            let projects = []
-
-            for (const lang of dataStructure.common.languages.supportedLanguages) {
-                let projectTags = Object.keys(dictionary.versions[lang.code].projectsMeta)
-                for (const projectTag of projectTags) {
-                    if (asset.tableName.includes(projectTag) && !projects.includes(projectTag)) {
-                        projects.push(projectTag)
-                    }
-                }
-                if (projects.length == 0) {
-                    /*
-                    the asset is referenced in non-project sheets or markdown files
-                    we could track down the references from the non-project sheets to see which projects reference them
-                    and add the corresponding projects (e.g. an image from "people" could be tracked by the "people" entry
-                    ID to see which dictionary projects reference this ID) but that is too laborious so here we
-                    just add all projects to assets from non-project sheets so they are preloaded to all projects
-                    creating some overhead
-                    */
-                    projects = projectTags
-                }
-            }
-
-            return { path: asset.path, size: asset.size, referencedInLanguages: asset.lang, referencedInProjects: projects }
-        })
-
         console.log("--- Compiled data")
 
         //do a test run unpacking references to see if all references exist
-        unpackReferences(dictionary, log, true)
+        let unpackedDictionary = JSON.parse(JSON.stringify(dictionary))
+        unpackReferences(unpackedDictionary, log, false)
 
-        console.log(dictionary)
+        //this has to be called after the dictionary has been unpacked so that all the data are expanded
+        dictionary.general.preloadableAssets = getPreloadableAssetsProjects(unpackedDictionary, preloadableAssets)
 
         dictionaryDataImport.compiledData = dictionary
 
+        console.log(dictionary)
+
         return dictionary
+
+        function getPreloadableAssetsProjects(unpackedDictionary, assets) {
+
+            let extractedPaths = {}
+            const pathsRegex = /"\/data\/[^"]+\.[a-zA-Z0-9]{1,5}"/g
+
+            for (const lang of dataStructure.common.languages.supportedLanguages) {
+                extractedPaths[lang.code] = unpackedDictionary.versions[lang.code].tables
+                    .filter(table => table.meta.project && table.meta.project != "")
+                    .map(table => ({ project: table.meta.project, data: JSON.stringify(table.data).match(pathsRegex) }))
+            }
+
+            let unusedAssets = []
+            let usedAssets = []
+
+            assets.forEach((asset) => {
+                let refs = {}
+                for (const lang of dataStructure.common.languages.supportedLanguages) {
+
+                    let projects = []
+
+                    let existingProjectTags = Object.keys(unpackedDictionary.versions[lang.code].projectsMeta)
+
+                    for (const projectTag of existingProjectTags) {
+                        if (asset.tableName.includes(projectTag) && !projects.includes(projectTag)) {
+                            projects.push(projectTag)
+                        }
+                    }
+
+                    //TODO eduplicate
+                    projects = [...projects, ...extractedPaths[lang.code]
+                        .filter(item => item.data?.includes("\"" + asset.path + "\""))
+                        .map(item => item.project)
+                    ]
+
+                    if (projects.length > 0) {
+                        refs[lang.code] = projects
+                    } else {
+                        unusedAssets.push({ lang: lang.code, path: asset.path })
+                    }
+                }
+
+                if (Object.keys(refs).length > 0) {
+                    usedAssets.push({ path: asset.path, size: asset.size, refs: refs })
+                }
+            })
+
+            if (unusedAssets.length > 0) {
+                console.log("Unused assets", unusedAssets)
+            }
+
+            return usedAssets
+        }
 
         function compileLanguageVersion(langCode) {
             let version = {
@@ -102,6 +133,7 @@ export let DictionaryDataImport = function () {
                         projectName: project.projectName,
                         projectTag: project.projectTag,
                         isoCode: project.isoCode,
+                        menuPath: project.menuPath,
                         translations: supportedVersionTranslations,
                         languageName: project.languageName,
                         specialLetters: project.specialLetters,
@@ -757,7 +789,7 @@ export let DictionaryDataImport = function () {
                             //folder
                             let possibleFiles = otherFiles.filter((file) => file.name.startsWith(folderOrFileName + "/")).map((file) => file.name)
 
-                            if(possibleFiles.length == 0){
+                            if (possibleFiles.length == 0) {
                                 console.error("Empty image folder:", folderOrFileName)
                             }
 
@@ -827,8 +859,14 @@ export let DictionaryDataImport = function () {
                                         break
                                     case "list": {
                                         let found = false
+                                        let valueLC = value.toLowerCase()
                                         integrity.listItems.forEach(function (allowed) {
-                                            if (!found && allowed.toLowerCase() == value.toLowerCase()) {
+                                            let allowedLC = allowed.toLowerCase()
+
+                                            if (!found && allowedLC == valueLC) {
+                                                found = true
+                                            }
+                                            if (!found && allowedLC.endsWith("*") && valueLC.startsWith(allowedLC.substring(0, allowedLC.length - 1))) {
                                                 found = true
                                             }
                                         })
@@ -1129,7 +1167,7 @@ export let DictionaryDataImport = function () {
 
     let FilesystemOperations = {
         dataFolderDropHandler: async function (e, dataReadyCallback) {
-            
+
             preloadableAssets = []
             textFiles = []
             otherFiles = []
@@ -1230,7 +1268,7 @@ export let DictionaryDataImport = function () {
                 }
             })
 
-            if(!foundSpreadsheet){
+            if (!foundSpreadsheet) {
                 console.error("Could not find an XSLX spreadsheet whose name ends with 'dictionary' in the dropped folder.")
             }
         },
@@ -1242,7 +1280,7 @@ export let DictionaryDataImport = function () {
         hasErrors: false,
 
         loadedData: {},
-        
+
         dataFolderDropHandler: async function (e, dataReadyCallback) {
             FilesystemOperations.dataFolderDropHandler(e, dataReadyCallback)
         },
@@ -1731,7 +1769,7 @@ export let dictionaryDataStructure = {
                                 allowDuplicates: "no",
                                 allowEmpty: false,
                                 allowedContent: "list",
-                                listItems: ["Color theme hue", "Checklist name", "About section", "Name of checklist data sheet", "Checklist data headers row", "Date format"],
+                                listItems: ["Portal name", "About section", "Date format"],
                                 supportsMultilingual: false
                             }
                         },
@@ -1797,6 +1835,17 @@ export let dictionaryDataStructure = {
                                 supportsMultilingual: false
                             }
                         },
+                        menuPath: {
+                            name: "Menu path",
+                            description: "",
+                            integrity: {
+                                description: "",
+                                allowEmpty: true,
+                                allowDuplicates: "yes",
+                                allowedContent: "any",
+                                supportsMultilingual: true
+                            }
+                        },
                         translations: {
                             name: "Translations",
                             description: "",
@@ -1824,7 +1873,7 @@ export let dictionaryDataStructure = {
                             description: "",
                             integrity: {
                                 description: "",
-                                allowEmpty: false,
+                                allowEmpty: true,
                                 allowDuplicates: "yes",
                                 allowedContent: "any",
                                 supportsMultilingual: false
@@ -1835,7 +1884,7 @@ export let dictionaryDataStructure = {
                             description: "",
                             integrity: {
                                 description: "",
-                                allowEmpty: false,
+                                allowEmpty: true,
                                 allowDuplicates: "yes",
                                 allowedContent: "any",
                                 supportsMultilingual: false,
@@ -1894,7 +1943,7 @@ export let dictionaryDataStructure = {
                             integrity: {
                                 description: "",
                                 allowEmpty: false,
-                                allowDuplicates: "no",
+                                allowDuplicates: "yes",
                                 allowedContent: "any",
                                 supportsMultilingual: false
                             }
@@ -1926,11 +1975,11 @@ export let dictionaryDataStructure = {
                             description: "",
                             integrity: {
                                 description: "",
-                                allowEmpty: false,
-                                allowDuplicates: "no",
+                                allowEmpty: true,
+                                allowDuplicates: "yes",
                                 allowedContent: "list",
                                 defaultValue: "complex",
-                                listItems: ["id", "complex", "tree-item", "main", "text", "ref-list", "file-audio", "file-image", "markdown"],
+                                listItems: ["", "id", "complex", "tree-items", "main", "text", "ref-list", "text", "audio", "images", "file-audio", "file-image", "folder-images", "markdown"],
                                 supportsMultilingual: false
                             }
                         },
@@ -2004,7 +2053,7 @@ export let dictionaryDataStructure = {
                                 allowEmpty: true,
                                 allowDuplicates: "yes",
                                 allowedContent: "list",
-                                listItems: ["audio", "image"],
+                                listItems: ["", "audio", "image", "chip-filter", "chip-single-item-view", "chip-search-text", "list-of-references-in:*", "chip-external-url"],
                                 supportsMultilingual: false
                             }
                         },
