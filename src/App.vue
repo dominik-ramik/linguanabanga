@@ -7,11 +7,11 @@ import SplashScreen from "@/views/SplashScreen.vue";
 import { useRoute } from "vue-router";
 import { useAppSettingsStore } from "@/store/AppSettingsStore.js";
 
-import logoLight from "@/assets/logo.svg";
-import logoDark from "@/assets/logo_dark.svg";
+import logoLightTheme from "@/assets/logo.svg";
+import logoDarkTheme from "@/assets/logo_dark.svg";
 
 const logo = computed(() => {
-  return appSettings.uiThemeIsDark ? logoLight : logoDark;
+  return appSettings.uiThemeIsDark ? logoDarkTheme : logoLightTheme;
 });
 
 const appSettings = useAppSettingsStore();
@@ -27,7 +27,7 @@ const route = useRoute();
 let maxTimeout = 2500; //flicker prevention for splash
 let intervalStep = 100;
 
-maxTimeout = 3500; //TODO remove in production
+maxTimeout = 500; //TODO remove in production
 
 let delayTimeout = window.setInterval(() => {
   loadingDelay.value += intervalStep;
