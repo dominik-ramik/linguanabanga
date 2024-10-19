@@ -56,11 +56,9 @@ function showImage(index, currentImage) {
             color="warning"
             icon="mdi-cloud-alert"
             size="x-large"
-             class="mr-5"
+            class="mr-5"
           ></v-icon>
-          <div>
-            Get online to view this picture
-          </div>
+          <div>Get online to view this picture</div>
         </div>
       </template>
     </v-img>
@@ -95,13 +93,21 @@ function showImage(index, currentImage) {
       style="display: inline-block; width: 6em; height: 6em"
       @click="showImage(index, this.src)"
     >
-      <template v-slot:placeholder>
+      <template v-slot:error>
         <div class="d-flex align-center justify-center fill-height">
           <v-icon
             color="warning"
             icon="mdi-cloud-alert"
             size="x-large"
           ></v-icon>
+        </div>
+      </template>
+      <template v-slot:placeholder>
+        <div class="d-flex align-center justify-center fill-height">
+          <v-progress-circular
+            color="grey-lighten-4"
+            indeterminate
+          ></v-progress-circular>
         </div>
       </template>
     </v-img>
