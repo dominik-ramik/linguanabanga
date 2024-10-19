@@ -92,6 +92,6 @@ self.addEventListener('message', function (message) {
 
 async function getCachedUrls(cacheName) {
     console.log("Getting cached items in SW")
-    const urls = (await (await caches.open(cacheName)).keys()).map(i => normalizeURLPathname(i.url))
+    const urls = (await (await caches.open(cacheName)).keys()).map(i => normalizeURLPathname(location.origin, i.url))
     return urls
 }
