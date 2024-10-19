@@ -21,7 +21,7 @@ const menu = computed(() => {
     */
     {
       title: "mainMenu.aboutDictionary",
-      pathName: "aboutDictionary",
+      pathName: "about-dictionary",
       icon: "mdi-book-information-variant",
     },
     {
@@ -29,7 +29,7 @@ const menu = computed(() => {
     },
     {
       title: "mainMenu.aboutAppTitle",
-      pathName: "aboutApp",
+      pathName: "about-app",
       icon: "mdi-information-outline",
     },
     { title: "mainMenu.settings", pathName: "settings", icon: "mdi-cog" },
