@@ -1,5 +1,6 @@
 import { computed, shallowRef } from 'vue'
 import axios from "axios";
+import { normalizeURLPathname } from '@/utils/normalizeURLPathname.js'
 
 const dictionaryData = shallowRef(null)
 
@@ -20,7 +21,9 @@ export function useDictionary(jsonDataUrl, langCode) {
 
     const preloadableAssets = computed(() => {
         if (isReady.value) {
-            return dictionaryData.value?.general.preloadableAssets
+            let pathCorrectedAssets = JSON.parse(JSON.stringify(dictionaryData.value?.general.preloadableAssets))
+            pathCorrectedAssets.forEach(asset => asset.path = normalizeURLPathname(window.location.origin, asset.path))
+            return pathCorrectedAssets
         }
         else {
             return undefined
@@ -43,7 +46,7 @@ export function useDictionary(jsonDataUrl, langCode) {
         for (const projectTag in projectsMeta.value) {
             const project = projectsMeta.value[projectTag]
             const letters = project.specialLetters ? project.specialLetters.split(" ") : []
-            
+
             lettersByProject[projectTag] = []
 
             letters.forEach((letter) => {
