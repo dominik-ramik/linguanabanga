@@ -1,13 +1,15 @@
-import { watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore, storeToRefs } from 'pinia'
 import { useRouter, useRoute } from "vue-router";
 import { useDictionary, reloadDictionary } from '@/composables/useDictionary.js';
 import { useDictionaryFilter, serializeFilter, deserializeFilter } from '@/composables/useDictionaryFilter.js';
+import { useAssetsCacheManagement } from '@/composables/useAssetsCacheManagement.js';
 import getDataByPath from '@/utils/GetDataByPath.js'
 import getMainItem from '@/utils/getMainItem.js'
 import { useStorage } from '@vueuse/core'
 
 import { i18n } from "@/i18n"
+import { useGlobalMessageChannel } from '@/composables/useGlobalMessageChannel';
 
 export const useDictionaryStore = defineStore('dictionary', () => {
 
@@ -16,6 +18,99 @@ export const useDictionaryStore = defineStore('dictionary', () => {
 
   const dictionary = storeToRefs(useDictionary("/data/data.json", i18n.global.locale))
   const filter = storeToRefs(useDictionaryFilter(dictionary))
+  const cache = storeToRefs(useAssetsCacheManagement(i18n.global.locale.value, filter.selectedProjects, dictionary.preloadableAssets, useGlobalMessageChannel()))
+
+  const isDownloadingAssets = ref(false);
+  const shouldBreakDownload = ref(false);
+
+  function downloadEnqueuedAssets() {
+    console.log("Initate download")
+    cache.processQueue.value = true;
+  }
+
+  function stopDownloadingEnqueuedAssets() {
+    cache.processQueue.value = false;
+  }
+
+  function clearAssetsCache() {
+    navigator.serviceWorker.controller.postMessage({
+      type: "CLEAR_DATA_ASSETS",
+    });
+    cache.getCachedAssets();
+  }
+
+  
+
+  let counterD = 0;
+
+  async function downloadMissingAssets() {
+    shouldBreakDownload.value = false;
+    if (cache.currentlyCachedAssets.value == null) {
+      return;
+    }
+
+    async function downloadInBatches(urls, parallelRequests = 4) {
+
+      counterD++;
+      let timestamp = "TS-" + counterD
+
+      for (let i = 0; i < urls.length; i += parallelRequests) {
+        if (shouldBreakDownload.value == true) {
+          shouldBreakDownload.value = false;
+          isDownloadingAssets.value = false;
+          break;
+        }
+
+        const batch = urls.slice(i, i + parallelRequests);
+
+        await Promise.allSettled(
+          await batch.map(async function (url) {
+            if (shouldBreakDownload.value == true) {
+              isDownloadingAssets.value = false;
+              return;
+            }
+            isDownloadingAssets.value = true;
+
+            console.log("Batch in", timestamp)
+
+            await fetch(url).then((response) => {
+              if (response.ok) {
+                response.blob().then(() => { });
+                cache.currentlyCachedAssets.value.push((new URL(url)).pathname)
+              } else {
+                console.error(
+                  `Failed to fetch ${url}: ${response.statusText}`,
+                  response
+                );
+              }
+            });
+          })
+        )
+      }
+    }
+
+    const parallelRequests = 5;
+
+    try {
+      fetch("/data/data.json");
+
+      downloadInBatches(
+        cache.uncachedAssets.value.map((asset) => window.location.origin + asset.path),
+        parallelRequests
+      ).then(() => {
+        //Call this to make sure we have the cached items updated from the ground truth
+        console.log("Finished downloading")
+        getCachedAssets();
+        shouldBreakDownload.value = false;
+        isDownloadingAssets.value = false;
+      })
+      console.log("finished download")
+    } finally {
+      console.log("called finally")
+      isDownloadingAssets.value = false;
+      shouldBreakDownload.value = false;
+    }
+  }
 
   const portalName = useStorage("portal-name", "", localStorage)
 
@@ -157,7 +252,7 @@ export const useDictionaryStore = defineStore('dictionary', () => {
       if (newValue[0].value == "" && Object.keys(newValue[1].value).length == 0) {
         //return
       }
-      
+
       router.push({
         name: "search",
         params: { table: filter.table.value },
@@ -180,5 +275,18 @@ export const useDictionaryStore = defineStore('dictionary', () => {
     }
   )
 
-  return { dictionary, filter, setFilters, serializeDictionaryFilter, findItem, getReferencesList, reloadDictionaryData, favorites }
+  return {
+    dictionary,
+    filter,
+    cache,
+    downloadEnqueuedAssets,
+    stopDownloadingEnqueuedAssets,
+    clearAssetsCache,
+    setFilters,
+    serializeDictionaryFilter,
+    findItem,
+    getReferencesList,
+    reloadDictionaryData,
+    favorites,
+  }
 })
