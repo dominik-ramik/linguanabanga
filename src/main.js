@@ -15,8 +15,6 @@ import App from './App.vue'
 
 // Composables
 import { createApp } from 'vue'
-import { useDictionaryStore } from './store/DictionaryStore';
-import router from './router';
 
 const app = createApp(App)
 registerPlugins(app)
@@ -38,10 +36,18 @@ if (import.meta.env.PROD) {
                     registration.active.postMessage({ type: 'PORT_INITIALIZATION' }, [
                         messageChannel.port2,
                     ]);
+                    //try downloading and caching the data file
+                    try {
+                        fetch("/data/data.json");
+                    }
+                    catch {
+                        console.log("Error downloading data file")
+                    }
                 });
         })
     }
 }
+
 
 if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persist().then((persistent) => {
