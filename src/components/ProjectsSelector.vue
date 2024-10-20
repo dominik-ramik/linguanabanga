@@ -29,15 +29,6 @@ const pathSortedProjects = computed(() => {
   });
 });
 
-const requiredDownloadSize = computed(() => {
-  let bytes = dictionaryStore.cache.queue.value.reduce(
-    (accumulator, currentValue) => accumulator + currentValue,
-    0
-  );
-
-  return bytes / 1024 / 1024
-});
-
 const offlineSnack = ref(false);
 </script>
 
@@ -95,8 +86,10 @@ const offlineSnack = ref(false);
                           !dictionaryStore.processQueue
                             ? "Stopping download"
                             : "Stop download"
-                        }}</v-btn
-                      >
+                        }}
+
+                        QL: {{ dictionaryStore.cache.queue.length }}
+                      </v-btn>
                     </div>
                   </template>
                 </v-progress-circular>
@@ -108,8 +101,9 @@ const offlineSnack = ref(false);
             >
               <div>
                 To enable full offline use, you need to download
-                {{ requiredDownloadSize.toFixed(1) }} Mb of assets to your device (you can
-                continue using the dictionary while downloading).
+                {{ dictionaryStore.cache.requiredDownloadSize.toFixed(1) }} Mb
+                of assets to your device (you can continue using the dictionary
+                while downloading).
               </div>
               <div>
                 <v-btn
@@ -118,19 +112,6 @@ const offlineSnack = ref(false);
                   class="mt-3"
                   >Download assets</v-btn
                 >
-              </div>
-              <div>
-                <div class="mt-16">
-                  You can delete the cached assets if you need to reclaim memory
-                  on your phone.
-                </div>
-                <div>
-                  <v-btn
-                    @click="dictionaryStore.clearAssetsCache()"
-                    color="primary"
-                    >Clear memory</v-btn
-                  >
-                </div>
               </div>
             </div>
           </div>
@@ -180,6 +161,19 @@ const offlineSnack = ref(false);
       </v-btn>
     </div>
   </div>
+
+  <div v-if="dictionaryStore.cache.currentlyCachedAssets?.length > 0">
+    <div class="mt-16">
+      You can delete the cached assets if you need to reclaim memory on your
+      phone. You won't have access to recordings or images while offline.
+    </div>
+    <div>
+      <v-btn @click="dictionaryStore.clearAssetsCache()" color="primary"
+        >Clear memory</v-btn
+      >
+    </div>
+  </div>
+
   <v-snackbar v-model="offlineSnack"
     >You need to get online to download the dictionary content</v-snackbar
   >

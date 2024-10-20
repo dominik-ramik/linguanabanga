@@ -21,9 +21,10 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
             if (currentlyCachedAssets.value == null) {
                 getCachedAssets()
             }
-
-            queue.value = allNeededAssets()
-            queueLengthBeforeProcessed.value = queue.value.length
+            else {
+                queue.value = allNeededAssets()
+                queueLengthBeforeProcessed.value = queue.value.length
+            }
         }
     )
 
@@ -72,6 +73,7 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
 
     function allNeededAssets() {
         console.log("### Called needed assets")
+        console.time("needed")
 
         let result = preloadableAssets.value.filter((asset) => {
             if (!(langCode.value in asset.refs)) {
@@ -89,7 +91,7 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
             return true
         });
 
-        console.log("### Finished calling needed assets")
+        console.timeEnd("needed")
 
         return result
     }
@@ -116,6 +118,11 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
                     queue.value = allNeededAssets()
                     queueLengthBeforeProcessed.value = queue.value.length
                     break;
+                case "DATA_ASSETS_CLEARED":
+                    currentlyCachedAssets.value = []
+                    queue.value = allNeededAssets()
+                    queueLengthBeforeProcessed.value = queue.value.length
+                    break;
                 default:
                     console.log(message.data);
                     break;
@@ -129,10 +136,26 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
         return 100 - 100 * (queue.value.length / queueLengthBeforeProcessed.value)
     })
 
+    const requiredDownloadSize = computed(() => {
+        if (!queue?.value) {
+            return 0
+        }
+
+        let size = 0
+
+        queue.value.forEach(asset => {
+            size += asset.size
+        })
+
+        size = size / 1024 / 1024;
+        return size
+    });
+
     return {
         queue,
         processQueue,
         downloadProgress,
         currentlyCachedAssets,
+        requiredDownloadSize,
     }
 }

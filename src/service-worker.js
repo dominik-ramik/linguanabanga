@@ -87,6 +87,7 @@ self.addEventListener('message', function (message) {
         })
     } else if (message.data && message.data.type == "CLEAR_DATA_ASSETS") {
         caches.delete(DATA_ASSETS_CACHE);
+        communicationPort.postMessage({ type: 'DATA_ASSETS_CLEARED' });
     }
 });
 
