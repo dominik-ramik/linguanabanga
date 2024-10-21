@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 
 export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, preloadableAssetsRef, messageChannelRef) {
 
@@ -15,16 +15,15 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
     const queue = ref([])
     const queueLengthBeforeProcessed = ref(0)
 
+    onMounted(() => {
+        getCachedAssets()
+    })
+
     watch(
         () => selectedProjects.value,
         () => {
-            if (currentlyCachedAssets.value == null) {
-                getCachedAssets()
-            }
-            else {
-                queue.value = allNeededAssets()
-                queueLengthBeforeProcessed.value = queue.value.length
-            }
+            queue.value = allNeededAssets()
+            queueLengthBeforeProcessed.value = queue.value.length
         }
     )
 
@@ -38,21 +37,44 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
                 }
             }
             else {
-                // Halt processing of the queue
+                // Halt processing of the queue is done in download loop by checking on processQueue.value
             }
         }
     )
+
+    const parallelism = 10
 
     async function downloadQuequedAssets() {
         queueLengthBeforeProcessed.value = queue.value.length
 
         while (queue.value.length > 0 && processQueue.value) {
-            const asset = queue.value.pop()
-            const url = window.location.origin + asset.path
-
             queueBeingProcessed.value = true;
 
-            await fetch(url).then((response) => {
+            let tasks = []
+            for (let i = 0; i < parallelism; i++) {
+                if (queue.value.length > 0) {
+                    tasks.push(enqueue(queue.value))
+                }
+            }
+            await Promise.allSettled(tasks)
+        }
+
+        queueBeingProcessed.value = false
+        processQueue.value = false
+        queueLengthBeforeProcessed.value = 0
+        setTimeout(() => {
+            getCachedAssets()
+        }, 200);
+
+        function enqueue(queue) {
+            const asset = queue.pop()
+            return download(asset)
+        }
+
+        function download(asset) {
+            const url = window.location.origin + asset.path
+
+            return fetch(url).then((response) => {
                 if (response.ok) {
                     response.blob().then(() => { });
                     currentlyCachedAssets.value.push(asset)
@@ -62,18 +84,12 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
                         response
                     );
                 }
-            });
+            }).catch((error) => console.log("Fetch error", error))
         }
-
-        queueBeingProcessed.value = false
-        processQueue.value = false
-        queueLengthBeforeProcessed.value = 0
-        getCachedAssets()
     }
-
     function allNeededAssets() {
-        console.log("### Called needed assets")
-        console.time("needed")
+
+        const currentlyCachedAssetsAsSet = new Set(currentlyCachedAssets.value.map(i => i.path))
 
         let result = preloadableAssets.value.filter((asset) => {
             if (!(langCode.value in asset.refs)) {
@@ -84,14 +100,12 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
                 return false
             }
 
-            if (currentlyCachedAssets.value.find(cached => cached.path == asset.path)) {
+            if (currentlyCachedAssetsAsSet.has(asset.path)) {
                 return false
             }
 
             return true
         });
-
-        console.timeEnd("needed")
 
         return result
     }
@@ -107,30 +121,32 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
     }
 
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-        //Listen to messages
-        messageChannel.value.port1.onmessage = function (message) {
-            // Process message
-            switch (message.data.type) {
-                case "CACHED_ASSETS":
-                    currentlyCachedAssets.value = message.data.assets.map(url =>
-                        preloadableAssets.value.find((asset => asset.path == url))
-                    );
-                    queue.value = allNeededAssets()
-                    queueLengthBeforeProcessed.value = queue.value.length
-                    break;
-                case "DATA_ASSETS_CLEARED":
-                    currentlyCachedAssets.value = []
-                    queue.value = allNeededAssets()
-                    queueLengthBeforeProcessed.value = queue.value.length
-                    break;
-                default:
-                    console.log(message.data);
-                    break;
-            }
-        };
-
         getCachedAssets()
     });
+
+    //Listen to messages
+    messageChannel.value.port1.onmessage = function (message) {
+        // Process message
+        switch (message.data.type) {
+            case "CACHED_ASSETS":
+                console.time("Preparing cached info")
+                currentlyCachedAssets.value = message.data.assets.map(url =>
+                    preloadableAssets.value.find((asset => asset.path === url))
+                );
+                queue.value = allNeededAssets()
+                console.timeEnd("Preparing cached info")
+                queueLengthBeforeProcessed.value = queue.value.length
+                break;
+            case "DATA_ASSETS_CLEARED":
+                currentlyCachedAssets.value = []
+                queue.value = allNeededAssets()
+                queueLengthBeforeProcessed.value = queue.value.length
+                break;
+            default:
+                console.log(message.data);
+                break;
+        }
+    };
 
     const downloadProgress = computed(() => {
         return 100 - 100 * (queue.value.length / queueLengthBeforeProcessed.value)
