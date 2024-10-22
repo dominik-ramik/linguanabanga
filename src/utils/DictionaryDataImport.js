@@ -84,14 +84,14 @@ export let DictionaryDataImport = function () {
                         }
                     }
 
-                    //TODO eduplicate
                     projects = [...projects, ...extractedPaths[lang.code]
                         .filter(item => item.data?.includes("\"" + asset.path + "\""))
                         .map(item => item.project)
                     ]
 
                     if (projects.length > 0) {
-                        refs[lang.code] = projects
+                        //deduplicate the projects
+                        refs[lang.code] =  [...new Set(projects)]
                     } else {
                         unusedAssets.push({ lang: lang.code, path: asset.path })
                     }

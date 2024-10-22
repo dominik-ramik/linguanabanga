@@ -14,12 +14,12 @@ console.log("version", VERSION)
 
 self.addEventListener('install', function (event) {
     event.waitUntil(self.skipWaiting()); // Activate worker immediately
-    console.log("SW installed")
+    //console.log("SW installed")
 });
 
 self.addEventListener('activate', function (event) {
     event.waitUntil(self.clients.claim()); // Become available to all pages
-    console.log("SW activated")
+    //console.log("SW activated")
 });
 
 cleanupOutdatedCaches()

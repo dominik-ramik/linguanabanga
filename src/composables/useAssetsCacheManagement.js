@@ -1,11 +1,11 @@
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useGlobalMessageChannel } from '@/composables/useGlobalMessageChannel.js';
 
-export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, preloadableAssetsRef, messageChannelRef) {
+export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, preloadableAssetsRef) {
 
     const langCode = ref(langCodeRef)
     const selectedProjects = ref(selectedProjectsRef)
     const preloadableAssets = ref(preloadableAssetsRef)
-    const messageChannel = ref(messageChannelRef)
 
     const currentlyCachedAssets = ref(null)
 
@@ -15,15 +15,18 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
     const queue = ref([])
     const queueLengthBeforeProcessed = ref(0)
 
-    onMounted(() => {
-        getCachedAssets()
-    })
-
     watch(
         () => selectedProjects.value,
         () => {
-            queue.value = allNeededAssets()
-            queueLengthBeforeProcessed.value = queue.value.length
+            if (currentlyCachedAssets.value == null) {
+                console.log("Got null")
+                getCachedAssets()
+            }
+            else {
+                console.log("Not null projects")
+                queue.value = allNeededAssets()
+                queueLengthBeforeProcessed.value = queue.value.length
+            }
         }
     )
 
@@ -87,9 +90,9 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
             }).catch((error) => console.log("Fetch error", error))
         }
     }
-    function allNeededAssets() {
 
-        const currentlyCachedAssetsAsSet = new Set(currentlyCachedAssets.value.map(i => i.path))
+    function allNeededAssets() {
+        const currentlyCachedAssetsAsSet = new Set(currentlyCachedAssets.value == null ? [] : currentlyCachedAssets.value.map(i => i.path))
 
         let result = preloadableAssets.value.filter((asset) => {
             if (!(langCode.value in asset.refs)) {
@@ -112,29 +115,32 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
 
     async function getCachedAssets() {
         try {
-            navigator.serviceWorker.controller.postMessage({
-                type: "GET_CACHED_ASSETS",
+            navigator.serviceWorker.ready.then((registration) => {
+                registration.active.postMessage({
+                    type: "GET_CACHED_ASSETS",
+                });
             });
         } catch (ex) {
             console.log("Error getting cached assets", ex);
         }
     }
 
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
+    let initialAssetsLoadingInterval = setInterval(() => {
         getCachedAssets()
-    });
-
+    }, 1000)  
+    
     //Listen to messages
-    messageChannel.value.port1.onmessage = function (message) {
+    useGlobalMessageChannel().port1.onmessage = function (message) {
         // Process message
         switch (message.data.type) {
             case "CACHED_ASSETS":
-                console.time("Preparing cached info")
+                clearInterval(initialAssetsLoadingInterval)
+
+                console.log("Got assets")
                 currentlyCachedAssets.value = message.data.assets.map(url =>
                     preloadableAssets.value.find((asset => asset.path === url))
                 );
                 queue.value = allNeededAssets()
-                console.timeEnd("Preparing cached info")
                 queueLengthBeforeProcessed.value = queue.value.length
                 break;
             case "DATA_ASSETS_CLEARED":

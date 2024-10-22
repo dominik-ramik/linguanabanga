@@ -1,9 +1,12 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 
 import { useRouter, useRoute } from "vue-router";
 import { useDictionaryStore } from "@/store/DictionaryStore";
 import { i18n } from "@/i18n";
+
+import { VTreeview } from "vuetify/labs/VTreeview";
+import { directiveHooks } from "@vueuse/core";
 
 const router = useRouter();
 const route = useRoute();
@@ -29,10 +32,55 @@ const pathSortedProjects = computed(() => {
   });
 });
 
+watch(
+  () => pathSortedProjects.value,
+  (newValue) => {
+    // If we have only one dictionary project, select it by default
+    if (
+      newValue.length == 1 &&
+      dictionaryStore.filter.selectedProjects.length == 0
+    ) {
+      dictionaryStore.filter.selectedProjects = newValue[0].projectTag;
+    }
+  },
+  { immediate: true }
+);
+
+function createTree(input, pathProp) {
+  const result = input.reduce((r, p, i) => {
+    const path =
+      p[pathProp] && p[pathProp].substr(0, 1) == "/"
+        ? p[pathProp]
+        : "/" + p[pathProp];
+    const [...names] = path.split("/");
+    const last = names[names.length - 1];
+    names.reduce((q, title) => {
+      let temp = q.find((o) => o.title === title);
+      //const id = p.name == name ? p.id : undefined;
+      const id = last == title ? p.id : undefined;
+      if (!temp) {
+        q.push((temp = { id, title, children: [] }));
+      }
+      return temp.children;
+    }, r);
+    return r;
+  }, []);
+
+  //console.log(result);
+  
+  return result;
+}
+
+//console.log("PATH", createTree(pathSortedProjects.value, "menuPath"));
+
 const offlineSnack = ref(false);
 </script>
 
 <template>
+  New Version
+  CACHED: {{ dictionaryStore.cache.currentlyCachedAssets?.length }} <br/>
+  QUEUE: {{ dictionaryStore.cache.processQueue?.length }} <br/>
+  <v-treeview :items="createTree(pathSortedProjects, 'menuPath')"></v-treeview>
   <div>
     <div>
       <div v-if="dictionaryStore.filter.selectedProjects.length == 0">
@@ -110,7 +158,9 @@ const offlineSnack = ref(false);
                   @click="dictionaryStore.downloadEnqueuedAssets()"
                   color="primary"
                   class="mt-3"
-                  >Download assets</v-btn
+                  >Prepare offline use for
+                  {{ dictionaryStore.filter.selectedProjects.length }}
+                  dictionaries</v-btn
                 >
               </div>
             </div>
@@ -121,6 +171,7 @@ const offlineSnack = ref(false);
     </div>
   </div>
 
+  <div class="text-h5 mb-2">Dictionary selection</div>
   <div>
     <v-card
       v-for="project in pathSortedProjects"
@@ -163,12 +214,16 @@ const offlineSnack = ref(false);
   </div>
 
   <div v-if="dictionaryStore.cache.currentlyCachedAssets?.length > 0">
+    <div class="text-h5 mb-2">Cache removal</div>
     <div class="mt-16">
       You can delete the cached assets if you need to reclaim memory on your
-      phone. You won't have access to recordings or images while offline.
+      device. You won't have access to recordings or images while offline.
     </div>
     <div>
-      <v-btn @click="dictionaryStore.clearAssetsCache()" color="primary"
+      <v-btn
+        @click="dictionaryStore.clearAssetsCache()"
+        color="warning"
+        prepend-icon="mdi-trash-can-outline"
         >Clear memory</v-btn
       >
     </div>

@@ -20,13 +20,7 @@ const currentFullSizeImage = computed(() => {
 
 const showDialog = ref(false);
 
-function showImage(index, currentImage) {
-  console.log("ss", imagePlaceholder, currentImage);
-  if (currentImage == imagePlaceholder) {
-    console.log("got");
-    return;
-  }
-
+function showImage(index) {
   currentFullSizeImageIndex.value = index;
   showDialog.value = true;
 }
@@ -91,7 +85,7 @@ function showImage(index, currentImage) {
       class="ma-1"
       cover
       style="display: inline-block; width: 6em; height: 6em"
-      @click="showImage(index, this.src)"
+      @click="showImage(index)"
     >
       <template v-slot:error>
         <div class="d-flex align-center justify-center fill-height">

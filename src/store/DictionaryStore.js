@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { watch } from 'vue'
 import { defineStore, storeToRefs } from 'pinia'
 import { useRouter, useRoute } from "vue-router";
 import { useDictionary, reloadDictionary } from '@/composables/useDictionary.js';
@@ -9,7 +9,6 @@ import getMainItem from '@/utils/getMainItem.js'
 import { useStorage } from '@vueuse/core'
 
 import { i18n } from "@/i18n"
-import { useGlobalMessageChannel } from '@/composables/useGlobalMessageChannel';
 
 export const useDictionaryStore = defineStore('dictionary', () => {
 
@@ -18,13 +17,9 @@ export const useDictionaryStore = defineStore('dictionary', () => {
 
   const dictionary = storeToRefs(useDictionary("/data/data.json", i18n.global.locale))
   const filter = storeToRefs(useDictionaryFilter(dictionary))
-  const cache = storeToRefs(useAssetsCacheManagement(i18n.global.locale.value, filter.selectedProjects, dictionary.preloadableAssets, useGlobalMessageChannel()))
-
-  const isDownloadingAssets = ref(false);
-  const shouldBreakDownload = ref(false);
+  const cache = storeToRefs(useAssetsCacheManagement(i18n.global.locale.value, filter.selectedProjects, dictionary.preloadableAssets))
 
   function downloadEnqueuedAssets() {
-    console.log("Initate download")
     cache.processQueue.value = true;
   }
 
