@@ -53,7 +53,6 @@ const pathsToTree = computed(() => {
 
       currentTreeNodeChildren = currentTreeNodeChildren.find(node => node.title == segment).children;
     }
-
     currentTreeNodeChildren.push({ id: entry.projectId, title: entry.languageName, type: "dictionary" })
   }
 
