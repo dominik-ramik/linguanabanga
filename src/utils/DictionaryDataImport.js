@@ -76,11 +76,11 @@ export let DictionaryDataImport = function () {
 
                     let projects = []
 
-                    let existingProjectTags = Object.keys(unpackedDictionary.versions[lang.code].projectsMeta)
+                    let existingprojectIds = Object.keys(unpackedDictionary.versions[lang.code].projectsMeta)
 
-                    for (const projectTag of existingProjectTags) {
-                        if (asset.tableName.includes(projectTag) && !projects.includes(projectTag)) {
-                            projects.push(projectTag)
+                    for (const projectId of existingprojectIds) {
+                        if (asset.tableName.includes(projectId) && !projects.includes(projectId)) {
+                            projects.push(projectId)
                         }
                     }
 
@@ -117,7 +117,7 @@ export let DictionaryDataImport = function () {
             }
 
             let projects = dataStructure.sheets.config.tables.languageProjects.data[langCode]
-            let projectTags = projects.map((project) => project.projectTag)
+            let projectIds = projects.map((project) => project.projectId)
 
             version.portalMeta.about = tryLoadingExternalFile(dataStructure.sheets.config.tables.customization.getItem("About section", langCode, ""), "", langCode)
             version.portalMeta.dateFormat = dataStructure.sheets.config.tables.customization.getItem("Date format", langCode, "")
@@ -129,10 +129,9 @@ export let DictionaryDataImport = function () {
             projects.forEach((project) => {
                 let supportedVersionTranslations = project.translations.split(",").map((item) => item.trim())
                 if (supportedVersionTranslations.indexOf(langCode) >= 0) {
-                    version.projectsMeta[project.projectTag] = {
+                    version.projectsMeta[project.projectId] = {
                         projectName: project.projectName,
-                        projectTag: project.projectTag,
-                        isoCode: project.isoCode,
+                        projectId: project.projectId,
                         menuPath: project.menuPath,
                         translations: supportedVersionTranslations,
                         languageName: project.languageName,
@@ -173,7 +172,7 @@ export let DictionaryDataImport = function () {
                     }
                 }
                 else {
-                    if (projectTags.includes(sheetName)) {
+                    if (projectIds.includes(sheetName)) {
                         let id = "dictionary-" + sheetName
                         tableIds[sheetName] = id
                         createBlankTableInVersion(version, id, { tableType: "dictionary", project: sheetName })
@@ -192,7 +191,7 @@ export let DictionaryDataImport = function () {
                         version.tempTables[tableIds[project]].data.push(row.d)
                     }
                     else {
-                        if (projectTags.includes(sheetName)) {
+                        if (projectIds.includes(sheetName)) {
                             version.tempTables[tableIds[sheetName]].data.push(row.d)
                         }
                         else {
@@ -707,7 +706,7 @@ export let DictionaryDataImport = function () {
                         let fileName = stringValue.trim()
                         fileName = trimChar(fileName, "/")
 
-                        if (dataStructure.sheets.config.tables.languageProjects.data[langCode].find((project) => project.projectTag == tableName)) {
+                        if (dataStructure.sheets.config.tables.languageProjects.data[langCode].find((project) => project.projectId == tableName)) {
                             fileName = "/data/rec/" + tableName + "/" + fileName
                         }
                         else {
@@ -1249,7 +1248,7 @@ export let DictionaryDataImport = function () {
                         //console.time("- Loading sheet " + dataSheetName)
                         let sheetType = dataSheetName
                         dataStructure.sheets.config.tables.languageProjects.data[dataStructure.common.languages.defaultLanguageCode].forEach((project) => {
-                            if (project.projectTag == dataSheetName) {
+                            if (project.projectId == dataSheetName) {
                                 sheetType = "dictionary"
                             }
                         })
@@ -1813,24 +1812,13 @@ export let dictionaryDataStructure = {
                                 supportsMultilingual: true
                             }
                         },
-                        projectTag: {
-                            name: "Project tag",
+                        projectId: {
+                            name: "Project ID",
                             description: "",
                             integrity: {
                                 description: "",
                                 allowEmpty: false,
                                 allowDuplicates: "no",
-                                allowedContent: "any",
-                                supportsMultilingual: false
-                            }
-                        },
-                        isoCode: {
-                            name: "ISO code",
-                            description: "",
-                            integrity: {
-                                description: "",
-                                allowEmpty: false,
-                                allowDuplicates: "yes",
                                 allowedContent: "any",
                                 supportsMultilingual: false
                             }

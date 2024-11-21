@@ -43,21 +43,21 @@ export function useDictionary(jsonDataUrl, langCode) {
         let lettersByProject = {}
         let allLetters = []
 
-        for (const projectTag in projectsMeta.value) {
-            const project = projectsMeta.value[projectTag]
+        for (const projectId in projectsMeta.value) {
+            const project = projectsMeta.value[projectId]
             const letters = project.specialLetters ? project.specialLetters.split(" ") : []
 
-            lettersByProject[projectTag] = []
+            lettersByProject[projectId] = []
 
             letters.forEach((letter) => {
-                if (!lettersByProject[projectTag].includes(letter)) {
-                    lettersByProject[projectTag].push(letter)
+                if (!lettersByProject[projectId].includes(letter)) {
+                    lettersByProject[projectId].push(letter)
                 }
                 if (!allLetters.includes(letter)) {
                     allLetters.push(letter)
                 }
             })
-            lettersByProject[projectTag].sort()
+            lettersByProject[projectId].sort()
         }
         allLetters.sort()
 

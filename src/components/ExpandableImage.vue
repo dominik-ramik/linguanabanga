@@ -18,6 +18,12 @@ const currentFullSizeImage = computed(() => {
   return imageUrls.value[currentFullSizeImageIndex.value];
 });
 
+const atLeastOneValidSource = computed(() => {
+  return imageUrls.value.find(
+    (url) => url != undefined && url != null && url.length > 0
+  );
+});
+
 const showDialog = ref(false);
 
 function showImage(index) {
@@ -29,81 +35,47 @@ function showImage(index) {
 </script>
 
 <template>
-  <v-dialog
-    v-model="showDialog"
-    max-width="100vw"
-    max-height="100vh"
-    style="background-color: rgba(0, 0, 0, 0.9)"
-    @click="showDialog = false"
-  >
-    <v-img
-      :src="currentFullSizeImage"
-      :lazy-src="imagePlaceholder"
-      loading="lazy"
-      height="95vh"
-      max-height="95vh"
-      max-width="95vw"
-    >
-      <template v-slot:placeholder>
-        <div class="d-flex align-center justify-center fill-height">
-          <v-icon
-            color="warning"
-            icon="mdi-cloud-alert"
-            size="x-large"
-            class="mr-5"
-          ></v-icon>
-          <div>Get online to view this picture</div>
-        </div>
-      </template>
-    </v-img>
-    <div
-      v-if="props.additionalLayout?.properties && props.additionalData"
-      style="
-        display: flex;
-        justify-content: center;
-        position: absolute;
-        bottom: 0px;
-        left: 0px;
-        right: 0px;
-        z-index: 9999;
-        background-color: rgba(var(--v-theme-surface), 0.7);
-      "
-    >
-      <DynamicDataContainer
-        v-for="(layout, index) in props.additionalLayout?.properties"
-        v-bind:key="index"
-        :currentData="props.additionalData"
-        :layout="layout"
-      />
-    </div>
-  </v-dialog>
+  <div if="atLeastOneValidSource">
+    <v-dialog v-model="showDialog" max-width="100vw" max-height="100vh" style="background-color: rgba(0, 0, 0, 0.9)"
+      @click="showDialog = false">
+      <v-img :src="currentFullSizeImage" :lazy-src="imagePlaceholder" loading="lazy" height="95vh" max-height="95vh"
+        max-width="95vw">
+        <template v-slot:placeholder>
+          <div class="d-flex align-center justify-center fill-height">
+            <v-icon color="warning" icon="mdi-cloud-alert" size="x-large" class="mr-5"></v-icon>
+            <div>Get online to view this picture</div>
+          </div>
+        </template>
+      </v-img>
+      <div v-if="props.additionalLayout?.properties && props.additionalData" style="
+          display: flex;
+          justify-content: center;
+          position: absolute;
+          bottom: 0px;
+          left: 0px;
+          right: 0px;
+          z-index: 9999;
+          background-color: rgba(var(--v-theme-surface), 0.7);
+        ">
+        <DynamicDataContainer v-for="(layout, index) in props.additionalLayout?.properties" v-bind:key="index"
+          :currentData="props.additionalData" :layout="layout" />
+      </div>
+    </v-dialog>
 
-  <template v-for="(imageUrl, index) in imageUrls" v-bind:key="imageUrl">
-    <v-img
-      :src="imageUrl"
-      :lazy-src="imagePlaceholder"
-      class="ma-1"
-      cover
-      style="display: inline-block; width: 6em; height: 6em"
-      @click="showImage(index)"
-    >
-      <template v-slot:error>
-        <div class="d-flex align-center justify-center fill-height">
-          <v-icon
-            color="warning"
-            icon="mdi-cloud-alert"
-            size="x-large"
-          ></v-icon>
-        </div>
-      </template>
-      <template v-slot:placeholder>
-        <div class="d-flex align-center justify-center fill-height">
-          <v-progress-circular
-            color="grey-lighten-4"
-            indeterminate
-          ></v-progress-circular>
-        </div>
-      </template>
-    </v-img>
-  </template>
+    <template v-for="(imageUrl, index) in imageUrls" v-bind:key="imageUrl">
+      <v-img v-if="imageUrl != null && imageUrl != ''" :src="imageUrl" :lazy-src="imagePlaceholder" class="ma-1" cover
+        style="display: inline-block; width: 6em; height: 6em" @click="showImage(index)">
+        <template v-slot:error>
+          <div class="d-flex align-center justify-center fill-height">
+            <v-icon color="warning" icon="mdi-cloud-alert" size="x-large"></v-icon>
+          </div>
+        </template>
+        <template v-slot:placeholder>
+          <div class="d-flex align-center justify-center fill-height">
+            <v-progress-circular color="grey-lighten-4" indeterminate></v-progress-circular>
+          </div>
+        </template>
+      </v-img>
+    </template>
+  </div>
 </template>

@@ -19,11 +19,9 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
         () => selectedProjects.value,
         () => {
             if (currentlyCachedAssets.value == null) {
-                console.log("Got null")
                 getCachedAssets()
             }
             else {
-                console.log("Not null projects")
                 queue.value = allNeededAssets()
                 queueLengthBeforeProcessed.value = queue.value.length
             }
@@ -127,8 +125,8 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
 
     let initialAssetsLoadingInterval = setInterval(() => {
         getCachedAssets()
-    }, 1000)  
-    
+    }, 1000)
+
     //Listen to messages
     useGlobalMessageChannel().port1.onmessage = function (message) {
         // Process message
