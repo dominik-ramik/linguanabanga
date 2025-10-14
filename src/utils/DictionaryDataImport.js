@@ -91,7 +91,7 @@ export let DictionaryDataImport = function () {
 
                     if (projects.length > 0) {
                         //deduplicate the projects
-                        refs[lang.code] =  [...new Set(projects)]
+                        refs[lang.code] = [...new Set(projects)]
                     } else {
                         unusedAssets.push({ lang: lang.code, path: asset.path })
                     }
@@ -296,8 +296,15 @@ export let DictionaryDataImport = function () {
 
     function tryLoadingExternalFile(value, referencedInProject, langCode) {
         if (value.startsWith("F:")) {
+            console.log(value, referencedInProject)
             value = value.substring(2)
+
+            if (value && referencedInProject != undefined && referencedInProject != null && referencedInProject != "") {
+                value = value.replace("%lang%", referencedInProject);
+            }
+
             let foundFile = textFiles.find((file) => file.name.endsWith(value))
+
             if (foundFile === undefined) {
                 //TODO put this into LOG
                 throw new Error("Linked file not found: " + value)
@@ -706,7 +713,10 @@ export let DictionaryDataImport = function () {
                         let fileName = stringValue.trim()
                         fileName = trimChar(fileName, "/")
 
-                        if (dataStructure.sheets.config.tables.languageProjects.data[langCode].find((project) => project.projectId == tableName)) {
+                        if(fileName.startsWith("./")){
+                            fileName = "/data/" + fileName.substring(2);
+                        }
+                        else if (dataStructure.sheets.config.tables.languageProjects.data[langCode].find((project) => project.projectId == tableName)) {
                             fileName = "/data/rec/" + tableName + "/" + fileName
                         }
                         else {

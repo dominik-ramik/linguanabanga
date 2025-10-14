@@ -110,5 +110,6 @@ const selectedProjects = computed(() => {
         {{ selectedProjects[slotProps.currentItem].projectName }}
       </div>
     </ShowMoreItems>
+
   </div>
 </template>

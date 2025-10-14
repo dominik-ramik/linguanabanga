@@ -53,8 +53,6 @@ const dictionaryStore = useDictionaryStore();
                         ? "Stopping download"
                         : "Stop download"
                     }}
-
-                    QL: {{ dictionaryStore.cache.queue.length }}
                   </v-btn>
                 </div>
               </template>
@@ -65,7 +63,7 @@ const dictionaryStore = useDictionaryStore();
           v-else-if="dictionaryStore.cache.currentlyCachedAssets !== null"
           class="d-flex flex-column align-center"
         >
-          <div>npm -i
+          <div>
             To enable full offline use, you need to download
             <b>{{ dictionaryStore.cache.requiredDownloadSize.toFixed(1) }} MB</b> of
             assets to your device (you can continue using the dictionary while
@@ -75,7 +73,7 @@ const dictionaryStore = useDictionaryStore();
             <v-btn
               @click="dictionaryStore.downloadEnqueuedAssets()"
               color="primary"
-              class="mt-3"
+              class="mt-3 mb-3"
               >Prepare offline use for
               {{ dictionaryStore.filter.selectedProjects.length }}
               dictionaries</v-btn

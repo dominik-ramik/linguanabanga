@@ -6,11 +6,10 @@ const dictionaryStore = useDictionaryStore();
 
 <template>
   <div>
-
     <project-offline-caching></project-offline-caching>
-    
+
     <project-selection-dialog v-if="!dictionaryStore.cache.processQueue"></project-selection-dialog>
-    
+
     <language-selection-dialog
     v-if="
       !dictionaryStore.cache.processQueue &&
@@ -18,8 +17,8 @@ const dictionaryStore = useDictionaryStore();
       1
       "
     ></language-selection-dialog>
-    
+
     <cache-deletion v-if="!dictionaryStore.cache.processQueue"></cache-deletion>
-  
+
 </div>
 </template>
