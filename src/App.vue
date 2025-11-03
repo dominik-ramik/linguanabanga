@@ -181,6 +181,11 @@ html {
   overflow: hidden;
 }
 
+/* Vuetify’s reset sets p { margin: 0 }. Restore margins in the main area only. */
+#main-area p {
+  margin: 1em 0;
+}
+
 span.markdown {
   display: block;
   max-width: 600px;
