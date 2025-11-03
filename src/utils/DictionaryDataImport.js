@@ -296,7 +296,7 @@ export let DictionaryDataImport = function () {
 
     function tryLoadingExternalFile(value, referencedInProject, langCode) {
         if (value.startsWith("F:")) {
-            console.log(value, referencedInProject)
+            //console.log(value, referencedInProject)
             value = value.substring(2)
 
             if (value && referencedInProject != undefined && referencedInProject != null && referencedInProject != "") {
