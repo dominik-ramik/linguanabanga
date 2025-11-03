@@ -21,7 +21,7 @@ const menu = computed(() => {
     */
     {
       title: "mainMenu.aboutDictionary",
-      pathName: "aboutDictionary",
+      pathName: "about-dictionary",
       icon: "mdi-book-information-variant",
     },
     {
@@ -29,7 +29,7 @@ const menu = computed(() => {
     },
     {
       title: "mainMenu.aboutAppTitle",
-      pathName: "aboutApp",
+      pathName: "about-app",
       icon: "mdi-information-outline",
     },
     { title: "mainMenu.settings", pathName: "settings", icon: "mdi-cog" },
@@ -68,67 +68,48 @@ const selectedProjects = computed(() => {
       return obj;
     }, {});
   return dictionaryStore.dictionary.projectsMeta.value.filter((p) =>
-    dictionaryStore.filter.selectedProjects.value.includes(p.projectTag)
+    dictionaryStore.filter.selectedProjects.value.includes(p.projectId)
   );
 });
 </script>
 
 <template>
-  <v-list
-    density="compact"
-    nav
-    v-for="(item, index) in menu"
-    v-bind:key="index"
-  >
+  <v-list density="compact" nav v-for="(item, index) in menu" v-bind:key="index">
     <v-divider v-if="item.type === 'divider'"></v-divider>
-    <v-list-item
-      v-else
-      :prepend-icon="item.icon"
-      :title="$t(item.title)"
-      :value="item"
-      :active="
-        item.tableToSearch
-          ? item.tableToSearch == expectedTable
-          : item.pathName == route.name
-      "
-      exact
-      color="primary"
-      @click="
+    <v-list-item v-else :prepend-icon="item.icon" :title="$t(item.title)" :value="item" :active="item.tableToSearch
+        ? item.tableToSearch == expectedTable
+        : item.pathName == route.name
+      " exact color="primary" @click="
         if (item.tableToSearch) {
-          if (
-            route.params.table &&
-            item.pathName + '-' + item.tableToSearch ==
-              route.name + '-' + route.params.table
-          ) {
-            dictionaryStore.setFilters({
-              text: '',
-              filters: {},
-            });
-          }
-          router.push({
-            name: item.pathName,
-            params: { table: item.tableToSearch },
-            query: { q: serializeFilter(dictionaryStore.filter) },
+        if (
+          route.params.table &&
+          item.pathName + '-' + item.tableToSearch ==
+          route.name + '-' + route.params.table
+        ) {
+          dictionaryStore.setFilters({
+            text: '',
+            filters: {},
           });
-        } else {
-          router.push({ name: item.pathName });
         }
-      "
-    ></v-list-item>
+        router.push({
+          name: item.pathName,
+          params: { table: item.tableToSearch },
+          query: { q: serializeFilter(dictionaryStore.filter) },
+        });
+      } else {
+        router.push({ name: item.pathName });
+      }
+        "></v-list-item>
   </v-list>
   <v-divider></v-divider>
-  <div class="ma-2 text-caption" v-if="dictionaryStore.filter.selectedProjects.length > 0">
+  <div class="ma-2 text-caption" v-if="dictionaryStore.filter.selectedProjects?.length > 0">
     <div class="font-weight-bold">Open projects</div>
-    <ShowMoreItems
-      :items="
-        Object.keys(selectedProjects).map((p) => selectedProjects[p].projectTag)
-      "
-      :maxItemsShown="3"
-      v-slot="slotProps"
-    >
+    <ShowMoreItems :items="Object.keys(selectedProjects).map((p) => selectedProjects[p].projectId)
+      " :maxItemsShown="3" v-slot="slotProps">
       <div class="ml-2">
         {{ selectedProjects[slotProps.currentItem].projectName }}
-      </div> </ShowMoreItems
-    >
+      </div>
+    </ShowMoreItems>
+
   </div>
 </template>

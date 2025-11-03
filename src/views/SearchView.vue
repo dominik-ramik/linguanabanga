@@ -1,9 +1,7 @@
 <script setup>
-import { ref, computed, provide, watch } from "vue";
-import { useAppSettingsStore } from "@/store/AppSettingsStore.js";
+import { ref, computed, watch } from "vue";
 import { useDictionaryStore } from "@/store/DictionaryStore.js";
 
-const appSettings = useAppSettingsStore();
 const dictionaryStore = useDictionaryStore();
 
 // 1-based page index so that v-pagination can use it as its model
@@ -14,7 +12,7 @@ const pageLength = ref(50);
 //watch for results changes and paginate to the first page whenever they change
 watch(
   () => dictionaryStore.filter.results,
-  (newValue, oldValue) => {
+  () => {
     currentPageIndex.value = 1;
   }
 );

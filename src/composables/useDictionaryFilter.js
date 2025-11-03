@@ -1,4 +1,4 @@
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import getDataByPath from '@/utils/GetDataByPath.js'
 import { useStorage } from '@vueuse/core'
 import { removeAccents } from "@/utils/removeAccents.js"
@@ -24,7 +24,7 @@ export function useDictionaryFilter(useDictionary) {
     const table = ref(null)
 
     watch(() => text.value,
-        (newValue, oldValue) => {
+        () => {
             if (text.value === undefined || text.value === null || !text.value) {
                 text.value = ""
             }
@@ -149,7 +149,7 @@ export function useDictionaryFilter(useDictionary) {
                 let bMainPathData = getDataByPath(b, mainPath)
 
                 if (!aMainPathData || !bMainPathData || aMainPathData.length == 0 || bMainPathData.length == 0) {
-                    console.log("Cannot find " + mainPath)
+                    //console.log("Cannot find dataPath:", mainPath, a, b)
                     return 0
                 }
 

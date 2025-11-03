@@ -59,6 +59,10 @@ function getPersistedLocale() {
 }
 
 export function isLocaleSupported(locale) {
+    if(!locale){
+        return false
+    }
+
     return supportedLocales.value.includes(locale)
 }
 

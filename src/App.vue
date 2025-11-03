@@ -7,11 +7,11 @@ import SplashScreen from "@/views/SplashScreen.vue";
 import { useRoute } from "vue-router";
 import { useAppSettingsStore } from "@/store/AppSettingsStore.js";
 
-import logoLight from "@/assets/logo.svg";
-import logoDark from "@/assets/logo_dark.svg";
+import logoLightTheme from "@/assets/logo.svg";
+import logoDarkTheme from "@/assets/logo_dark.svg";
 
 const logo = computed(() => {
-  return appSettings.uiThemeIsDark ? logoDark : logoLight;
+  return appSettings.uiThemeIsDark ? logoDarkTheme : logoLightTheme;
 });
 
 const appSettings = useAppSettingsStore();
@@ -27,7 +27,7 @@ const route = useRoute();
 let maxTimeout = 2500; //flicker prevention for splash
 let intervalStep = 100;
 
-maxTimeout = 3500; //TODO remove in production
+maxTimeout = 500; //TODO remove in production
 
 let delayTimeout = window.setInterval(() => {
   loadingDelay.value += intervalStep;
@@ -39,6 +39,16 @@ let delayTimeout = window.setInterval(() => {
 const showMenu = ref(!mobile.value);
 function toggleMenu() {
   showMenu.value = !showMenu.value;
+  if (showMenu.value) {
+    showSidebar.value = false;
+  }
+}
+
+function toggleSidebar() {
+  showSidebar.value = !showSidebar.value;
+  if (showSidebar.value) {
+    showMenu.value = false;
+  }
 }
 
 const showSidebar = ref(false);
@@ -52,7 +62,7 @@ const shouldShowPanel = computed({
   },
   // setter
   set(newValue) {
-    showSidebar.value = newValue
+    showSidebar.value = newValue;
   },
 });
 </script>
@@ -118,13 +128,17 @@ const shouldShowPanel = computed({
         v-if="!mobile && route.name == 'search'"
       ></search-box>
 
-      <v-btn v-if="mobile" icon @click.stop="showSidebar = !showSidebar">
+      <v-btn
+        v-if="mobile && route.meta.requiresProjectsSelected"
+        icon
+        @click.stop="toggleSidebar()"
+      >
         <v-badge
           color="error"
           :content="dictionaryStore.filter.activeFilters.length"
           :model-value="dictionaryStore.filter.activeFilters.length > 0"
         >
-          <v-icon color="surface">mdi-dots-vertical</v-icon>
+          <v-icon color="surface">mdi-binoculars</v-icon>
         </v-badge>
       </v-btn>
     </v-app-bar>
@@ -139,13 +153,7 @@ const shouldShowPanel = computed({
         class="ma-1"
         :style="mobile ? '' : 'max-width: 1350px'"
       >
-        <router-view
-          v-if="dictionaryStore.filter.selectedProjects.length > 0"
-        ></router-view>
-        <div v-else>
-          <h2>Select the dictionary you want to browse</h2>
-          <ProjectsSelector></ProjectsSelector>
-        </div>
+        <router-view></router-view>
       </v-main>
     </div>
     <v-bottom-navigation v-if="mobile && route.name == 'search'">

@@ -1,31 +1,25 @@
 import { createHandlerBoundToURL, precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
 import { StaleWhileRevalidate, CacheFirst } from 'workbox-strategies';
+import { version } from '@/../package.json'
+import { normalizeURLPathname } from '@/utils/normalizeURLPathname.js'
 
 const DATA_JSON_CACHE = "data-json"
 const DATA_ASSETS_CACHE = "data-assets"
 const OTHER_ASSETS_CACHE = "other-assets"
 const GOOGLE_APIS_CACHE = "google-apis"
 
-//Request persistent storage
-if (navigator.storage && navigator.storage.persist) {
-    navigator.storage.persist().then((persistent) => {
-        if (persistent) {
-            console.log("Storage will not be cleared except by explicit user action");
-        } else {
-            console.log("Storage may be cleared by the UA under storage pressure.");
-        }
-    });
-}
+const VERSION = version
+console.log("version", VERSION)
 
 self.addEventListener('install', function (event) {
     event.waitUntil(self.skipWaiting()); // Activate worker immediately
-    console.log("SW installed")
+    //console.log("SW installed")
 });
 
 self.addEventListener('activate', function (event) {
     event.waitUntil(self.clients.claim()); // Become available to all pages
-    console.log("SW activated")
+    //console.log("SW activated")
 });
 
 cleanupOutdatedCaches()
@@ -93,10 +87,10 @@ self.addEventListener('message', function (message) {
         })
     } else if (message.data && message.data.type == "CLEAR_DATA_ASSETS") {
         caches.delete(DATA_ASSETS_CACHE);
+        communicationPort.postMessage({ type: 'DATA_ASSETS_CLEARED' });
     }
 });
 
 async function getCachedUrls(cacheName) {
-    const urls = (await (await caches.open(cacheName)).keys()).map(i => i.url)
-    return urls
+    return (await (await caches.open(cacheName)).keys()).map(i => normalizeURLPathname(location.origin, i.url))
 }

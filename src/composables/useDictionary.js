@@ -1,5 +1,6 @@
-import { ref, computed, shallowRef } from 'vue'
+import { computed, shallowRef } from 'vue'
 import axios from "axios";
+import { normalizeURLPathname } from '@/utils/normalizeURLPathname.js'
 
 const dictionaryData = shallowRef(null)
 
@@ -20,7 +21,9 @@ export function useDictionary(jsonDataUrl, langCode) {
 
     const preloadableAssets = computed(() => {
         if (isReady.value) {
-            return dictionaryData.value?.general.preloadableAssets
+            let pathCorrectedAssets = JSON.parse(JSON.stringify(dictionaryData.value?.general.preloadableAssets))
+            pathCorrectedAssets.forEach(asset => asset.path = normalizeURLPathname(window.location.origin, asset.path))
+            return pathCorrectedAssets
         }
         else {
             return undefined
@@ -40,21 +43,21 @@ export function useDictionary(jsonDataUrl, langCode) {
         let lettersByProject = {}
         let allLetters = []
 
-        for (const projectTag in projectsMeta.value) {
-            const project = projectsMeta.value[projectTag]
+        for (const projectId in projectsMeta.value) {
+            const project = projectsMeta.value[projectId]
             const letters = project.specialLetters ? project.specialLetters.split(" ") : []
-            
-            lettersByProject[projectTag] = []
+
+            lettersByProject[projectId] = []
 
             letters.forEach((letter) => {
-                if (!lettersByProject[projectTag].includes(letter)) {
-                    lettersByProject[projectTag].push(letter)
+                if (!lettersByProject[projectId].includes(letter)) {
+                    lettersByProject[projectId].push(letter)
                 }
                 if (!allLetters.includes(letter)) {
                     allLetters.push(letter)
                 }
             })
-            lettersByProject[projectTag].sort()
+            lettersByProject[projectId].sort()
         }
         allLetters.sort()
 
@@ -316,6 +319,7 @@ export function unpackReferences(data, logFn, simulateOnly) {
                     if (typeof id === 'string' || id instanceof String) {
                         let linkedData = targetTableData.find((item) => item.id == id)
                         if (linkedData === undefined) {
+                            //TODO enable logfn
                             logFn && logFn("error", "Failed to find " + id + " (in path '" + path + "') in " + targetTableType)
                         }
                         if (!simulateOnly) {

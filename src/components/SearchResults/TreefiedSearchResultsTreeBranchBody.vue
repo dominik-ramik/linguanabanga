@@ -25,7 +25,7 @@ const searchResultLayout = computed(() => {
       :key="
         index +
         ':' +
-        result.item.__meta.project?.projectTag +
+        result.item.__meta.project?.projectId +
         ':' +
         result.refIndex +
         ':' +

@@ -2,18 +2,20 @@
 import { ref } from "vue";
 
 const props = defineProps(["src", "additionalData", "additionalLayout"]);
-const player = ref(null);
 
 let audioElement = null;
 
 function playPause() {
   if (audioElement == null) {
+    console.log("playing")
     audioElement = new Audio(encodeURI(props.src));
     audioElement.onended = function () {
       audioElement = null;
     };
     audioElement.play();
   } else {
+    console.log("pausing")
+    audioElement.pause();
     audioElement = null;
   }
 }

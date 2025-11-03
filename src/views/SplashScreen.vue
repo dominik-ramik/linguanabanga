@@ -2,14 +2,14 @@
 import { computed } from "vue";
 import { useStorage } from "@vueuse/core";
 import { useAppSettingsStore } from "@/store/AppSettingsStore.js";
-import logoLight from "@/assets/logo.svg";
-import logoDark from "@/assets/logo_dark.svg";
+import logoLightTheme from "@/assets/logo_blue.svg";
+import logoDarkTheme from "@/assets/logo_light.svg";
 
 const appSettings = useAppSettingsStore();
 
 const name = useStorage("portal-name", "", localStorage);
 const logo = computed(() => {
-  return appSettings.uiThemeIsDark ? logoDark : logoLight;
+  return appSettings.uiThemeIsDark ?  logoDarkTheme : logoLightTheme;
 });
 </script>
 
@@ -17,7 +17,7 @@ const logo = computed(() => {
   <div
     id="loading-wrapper"
     class="d-flex align-center justify-center flex-column"
-    style="background-color: rgb(var(--v-theme-primary))"
+    :style="'background-color: rgb(var(--v-theme-' + (appSettings.uiThemeIsDark ? 'surface' : 'surface') + '))'"
   >
     <v-img
       :width="300"
@@ -26,13 +26,13 @@ const logo = computed(() => {
       :src="logo"
     ></v-img>
     <br />
-    <p class="text-h4 mb-5" style="color: rgb(var(--v-theme-surface))">{{ name }}</p>
+    <p class="text-h4 mb-5" style="color: rgb(var(--v-theme-primary))">{{ name }}</p>
     <br />
     <div style="width: 100%">
       <v-progress-linear
         :active="true"
         indeterminate="true"
-        color="surface"
+        color="primary"
         height="10"
       ></v-progress-linear>
     </div>

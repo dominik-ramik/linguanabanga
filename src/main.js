@@ -26,18 +26,28 @@ app.config.globalProperties.$messageChannel = messageChannel;
 app.use(i18n).mount('#app')
 
 // Register sevice worker
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
-        navigator.serviceWorker.ready
-            .then((registration) => {
-                // Open communication channel
-                registration.active.postMessage({ type: 'PORT_INITIALIZATION' }, [
-                    messageChannel.port2,
-                ]);
-            });
-    })
+if (import.meta.env.PROD) {
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+            navigator.serviceWorker.ready
+                .then((registration) => {
+                    // Open communication channel
+                    registration.active.postMessage({ type: 'PORT_INITIALIZATION' }, [
+                        messageChannel.port2,
+                    ]);
+                    //try downloading and caching the data file
+                    try {
+                        fetch("/data/data.json");
+                    }
+                    catch {
+                        console.log("Error downloading data file")
+                    }
+                });
+        })
+    }
 }
+
 
 if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persist().then((persistent) => {
