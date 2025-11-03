@@ -22,7 +22,7 @@ const router = createRouter({
       redirect:
         (persistentTable.value ?
           { name: 'search', params: { locale: inferLocale(), table: persistentTable.value } } :
-          { name: 'about-app', params: { locale: inferLocale() } }
+          { name: 'about-dictionary', params: { locale: inferLocale() } }
         )
     },
     {
