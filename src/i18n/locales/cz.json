@@ -1,8 +1,8 @@
 {
-  "appName": "Ieni",
+  "appName": "Lingua Nabanga",
   "mainMenu": {
     "aboutAppTitle": "O @:appName",
-    "aboutAppText": "About @:appName",
+    "aboutAppText": "@:appName is a web app for building and browsing multilingual, project-based dictionaries. It loads structured data from JSON, supports Markdown content, and offers fast text search with configurable fuzziness.\n\nIt works offline (PWA) and supports flexible data types and presentation, including images and audio.\n\nData format: content lives in a simple Excel spreadsheet (XLSX) and a plain folder structure for media. You can compile them into a single data.json with the built-in importer.\n\nOriginally created for the *Plants mo Pipol blong Vanuatu* research project. Developed and maintained by **Dominik M. Ramík** — [dominicweb.eu](https://dominicweb.eu).\n\nSource code and issues: [github.com/dominik-ramik/lingua-nabanga](https://github.com/dominik-ramik/lingua-nabanga).",
     "manage": "Spravovat",
     "aboutDictionary": "O tomto slovníku"
   },
