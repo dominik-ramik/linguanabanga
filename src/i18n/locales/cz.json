@@ -1,5 +1,5 @@
 {
-  "appName": "Lingua Nabanga",
+  "appName": "LinguaNabanga",
   "mainMenu": {
     "aboutAppTitle": "O @:appName",
     "aboutAppText": "@:appName je webová aplikace pro tvorbu a procházení vícejazyčných, projektově zaměřených slovníků. Načítá strukturovaná data z JSONu, podporuje obsah v Markdownu a nabízí rychlé fulltextové vyhledávání s konfigurovatelnou tolerancí.\n\n\n\nFunguje offline (PWA) a podporuje flexibilní typy dat i způsoby zobrazení, včetně obrázků a audia.\n\n\n\nFormát dat: obsah je uložen v jednoduchém excelovém sešitu (XLSX) a v přehledné adresářové struktuře pro média. Pomocí vestavěného importéru je můžete zkompilovat do jediného souboru data.json.\n\n\n\nPůvodně vytvořeno pro výzkumný projekt *Plants mo Pipol blong Vanuatu*. Vyvíjí a udržuje **Dominik M. Ramík** — [dominicweb.eu](https://dominicweb.eu).\n\n\n\nZdrojový kód a hlášení problémů: [github.com/dominik-ramik/lingua-nabanga](https://github.com/dominik-ramik/lingua-nabanga).",
