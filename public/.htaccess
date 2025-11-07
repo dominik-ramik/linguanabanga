@@ -1,0 +1,30 @@
+# Serve index.html for client-side routes (Vue Router history mode)
+Options -MultiViews
+DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Allow existing files and directories
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Fallback all other requests to index.html
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Fallback if mod_rewrite is not available
+ErrorDocument 404 /index.html
+
+# PWA: prevent aggressive caching of the service worker
+<IfModule mod_headers.c>
+  <Files "service-worker.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </Files>
+</IfModule>
+
+# Correct MIME for Web App Manifest
+AddType application/manifest+json .webmanifest
