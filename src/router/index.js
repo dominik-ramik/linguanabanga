@@ -6,6 +6,7 @@ import LearningView from '@/views/LearningView.vue'
 import AboutApp from '@/views/AboutApp.vue'
 import AboutDictionary from '@/views/AboutDictionary.vue'
 import SettingsView from '@/views/SettingsView.vue'
+import LanguageSelectorView from '@/views/LanguageSelectorView.vue'
 
 import { i18n, inferLocale, isLocaleSupported, setLocale } from "@/i18n"
 import { useStorage } from '@vueuse/core'
@@ -62,6 +63,12 @@ const router = createRouter({
       meta: { requiresProjectsSelected: false },
       props: true,
     },
+    {
+      path: '/:locale/select-dictionary',
+      name: 'select-dictionary',
+      component: LanguageSelectorView,
+      meta: { requiresProjectsSelected: false },
+    },
   ],
   history: createWebHistory(import.meta.env.BASE_URL),
   scrollBehavior() {
@@ -91,12 +98,14 @@ router.beforeEach((to, from) => {
   }
 
   // Need to select language and projects first
-  let goesToDictionarySelection = to.name == "settings" && to.params?.tabId == "dictionary-selection"
+  let goesToDictionarySelection =
+    to.name == "select-dictionary" ||
+    (to.name == "settings" && to.params?.tabId == "dictionary-selection")
 
   if (!goesToDictionarySelection && to.meta?.requiresProjectsSelected) {
     if (!dictionaryStore.filter?.selectedProjects?.length > 0) {
-      //need to select language and projects first
-      return { name: "settings", params: { locale: pathLocale, tabId: "dictionary-selection" } }
+      // need to select at least one dictionary first
+      return { name: "select-dictionary", params: { locale: pathLocale } }
     }
   }
 

@@ -4,9 +4,18 @@
     "aboutAppTitle": "À propos de @:appName",
     "aboutAppText": "@:appName est une application web pour créer et parcourir des dictionnaires multilingues organisés par projet. Elle charge des données structurées depuis du JSON, prend en charge le contenu Markdown et propose une recherche textuelle rapide avec une tolérance configurable.\n\n\n\nElle fonctionne hors ligne (PWA) et prend en charge des types de données et des présentations flexibles, y compris les images et l’audio.\n\n\n\nFormat des données : le contenu est conservé dans un simple tableur Excel (XLSX) et une arborescence de dossiers pour les médias. Vous pouvez compiler le tableur et les dossiers en un seul fichier data.json avec l’outil d’importation intégré.\n\n\n\nCréée à l’origine pour le projet de recherche *Plants mo Pipol blong Vanuatu*. Développée et maintenue par **Dominik M. Ramík** — [dominicweb.eu](https://dominicweb.eu).\n\n\n\nCode source et tickets : [github.com/dominik-ramik/lingua-nabanga](https://github.com/dominik-ramik/lingua-nabanga).",
     "manage": "Gérer",
-    "aboutDictionary": "À propos de ce dictionnaire"
+    "aboutDictionary": "À propos de ce dictionnaire",
+    "selectDictionary": "Sélectionner le dictionnaire"
   },
   "manage": {
     "heading": "Importer données"
+  },
+  "languageSelectorView": {
+    "placement": "Emplacement",
+    "dictionary": "Dictionnaire",
+    "action": "Action",
+    "show": "Afficher ce dictionnaire",
+    "hide": "Masquer ce dictionnaire",
+    "hintNoSelection": "Aucun dictionnaire n'est sélectionné. Sélectionnez un ou plusieurs dictionnaires à afficher."
   }
 }

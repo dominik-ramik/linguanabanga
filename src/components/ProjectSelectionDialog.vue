@@ -2,7 +2,6 @@
 import { ref, computed, watch } from "vue";
 import { useDictionaryStore } from "@/store/DictionaryStore";
 import { i18n } from "@/i18n";
-import { VTreeview } from 'vuetify/labs/VTreeview'
 
 const dictionaryStore = useDictionaryStore();
 
@@ -55,9 +54,6 @@ const pathsToTree = computed(() => {
     }
     currentTreeNodeChildren.push({ id: entry.projectId, title: entry.languageName, type: "dictionary" })
   }
-
-  console.log(entries);
-  console.log(tree);
 
   return tree
 });

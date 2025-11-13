@@ -5,9 +5,18 @@
     "aboutDictionary": "About this dictionary",
     "aboutAppTitle": "About @:appName",
     "aboutAppText": "@:appName is a web app for building and browsing multilingual, project-based dictionaries. It loads structured data from JSON, supports Markdown content, multimedia, and offers fast text search with configurable fuzziness.\n\n\n\nIt works offline (PWA) and supports flexible data types and presentation, including images and audio.\n\n\n\nData format: content lives in a simple Excel spreadsheet (XLSX) and a plain folder structure for media. You can compile them into a single data.json with the built-in importer.\n\n\n\nOriginally created for the *Plants mo Pipol blong Vanuatu* research project. Developed and maintained by **Dominik M. Ramík** — [dominicweb.eu](https://dominicweb.eu).\n\n\n\nSource code and issues: [github.com/dominik-ramik/lingua-nabanga](https://github.com/dominik-ramik/lingua-nabanga).",
-    "settings": "Settings"
+    "settings": "Settings",
+    "selectDictionary": "Select dictionary"
   },
   "manage": {
     "heading": "Import data"
+  },
+  "languageSelectorView": {
+    "placement": "Placement",
+    "dictionary": "Dictionary",
+    "action": "Action",
+    "show": "Show this dictionary",
+    "hide": "Hide this dictionary",
+    "hintNoSelection": "No dictionary is selected. Select one or more dictionaries to display."
   }
 }

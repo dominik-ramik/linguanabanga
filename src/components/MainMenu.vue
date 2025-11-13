@@ -32,6 +32,11 @@ const menu = computed(() => {
       pathName: "about-app",
       icon: "mdi-information-outline",
     },
+    {
+      title: "mainMenu.selectDictionary",
+      pathName: "select-dictionary",
+      icon: "mdi-book-alphabet",
+    },
     { title: "mainMenu.settings", pathName: "settings", icon: "mdi-cog" },
   ];
 
