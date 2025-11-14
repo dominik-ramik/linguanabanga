@@ -58,14 +58,19 @@ export default defineConfig({
       filename: 'service-worker.js',
       registerType: null,
       includeAssets: ['assets/*.*'],
+      devOptions: {
+        enabled: true, // Enable SW in dev mode
+        type: 'module',
+        navigateFallback: 'index.html',
+      },
       injectManifest: {
-        globPatterns: ['assets/*', 'favicons/*', 'screenshots/*', 'data/*.json', '*.{js,css,html,webmanifest}'], //, '**/*.{js,css,html,svg,ttf,woof,woof2,eot}', 'assets/*.*'],
+        globPatterns: ['assets/*', 'favicons/*', 'screenshots/*', 'data/*.json', '*.{js,css,html,webmanifest}'],
         maximumFileSizeToCacheInBytes: 100000000, //100mb file limit
       },
       manifest: {
         // caches the assets/icons mentioned (assets/* includes all the assets present in your src/ directory) 
-        name: 'Lingo Nabanga',
-        short_name: 'Lingo Nabanga',
+        name: 'LinguaNabanga',
+        short_name: 'LinguaNabanga',
         id: "/",
         display: "standalone",
         display_override: ["standalone", "minimal-ui"],
@@ -85,14 +90,14 @@ export default defineConfig({
             src: "screenshots/screenshot-mobile.webp",
             sizes: "720x1280",
             type: "image/webp",
-            label: "Lingo Nabanga"
+            label: "LinguaNabanga"
           },
           {
             src: "screenshots/screenshot-desktop.webp",
             sizes: "1280x720",
             type: "image/webp",
             form_factor: "wide",
-            label: "Lingo Nabanga"
+            label: "LinguaNabanga"
           }
         ]
       },
