@@ -69,7 +69,7 @@ const shouldShowPanel = computed({
 
 <template>
   <v-app
-    v-if="!dictionaryStore.dictionary.isReady || loadingDelay < maxTimeout"
+    v-if="(!dictionaryStore.isReady && route.name !== 'settings') || loadingDelay < maxTimeout"
   >
     <SplashScreen v-if="true" />
     <!-- TODO remove in production -->
@@ -116,7 +116,7 @@ const shouldShowPanel = computed({
           {{
             dictionaryStore.dictionary.portalName ||
             $route.meta.title ||
-            "Default title"
+            "New Lingua Nabanga dictionary"
           }}
         </div>
       </v-app-bar-title>

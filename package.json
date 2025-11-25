@@ -1,6 +1,6 @@
 {
   "name": "dictionary-app",
-  "version": "0.9.3",
+  "version": "0.9.4-beta",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

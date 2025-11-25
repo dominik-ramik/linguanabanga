@@ -13,6 +13,7 @@ import traverseData from "@/utils/traverseData.js"
 import getMainItem from "./getMainItem.js"
 import { extractShortcodes } from "./shortcodesProcessor.js"
 import { audioFilesExtensions, imageFilesExtensions } from "./fileExtensions.js"
+import { ref } from "vue"
 
 export let DictionaryDataImport = function () {
     const dataStructure = dictionaryDataStructure
@@ -713,7 +714,7 @@ export let DictionaryDataImport = function () {
                         let fileName = stringValue.trim()
                         fileName = trimChar(fileName, "/")
 
-                        if(fileName.startsWith("./")){
+                        if (fileName.startsWith("./")) {
                             fileName = "/data/" + fileName.substring(2);
                         }
                         else if (dataStructure.sheets.config.tables.languageProjects.data[langCode].find((project) => project.projectId == tableName)) {
@@ -799,7 +800,7 @@ export let DictionaryDataImport = function () {
                             let possibleFiles = otherFiles.filter((file) => file.name.startsWith(folderOrFileName + "/")).map((file) => file.name)
 
                             if (possibleFiles.length == 0) {
-                                console.error("Empty image folder:", folderOrFileName)
+                                console.error("Empty image folder:", folderOrFileName, otherFiles)
                             }
 
                             for (const file of possibleFiles) {
@@ -1154,7 +1155,7 @@ export let DictionaryDataImport = function () {
         //TODO enable log
         //return
 
-        let index = dictionaryDataImport.loggedMessages.findIndex(function (msg) {
+        let index = dictionaryDataImport.loggedMessages.value.findIndex(function (msg) {
             if (msg.level == "critical" || msg.level == "error") {
                 console.error("ERROR", message)
                 dictionaryDataImport.hasErrors = true
@@ -1165,7 +1166,7 @@ export let DictionaryDataImport = function () {
             }
         })
         if (index < 0) {
-            dictionaryDataImport.loggedMessages.push({ level: level, message: message })
+            dictionaryDataImport.loggedMessages.value.push({ level: level, message: message })
         }
 
         if (level == "critical" || level == "error") {
@@ -1177,121 +1178,142 @@ export let DictionaryDataImport = function () {
     let FilesystemOperations = {
         dataFolderDropHandler: async function (e, dataReadyCallback) {
 
+            dictionaryDataImport.loggedMessages.value = [];
+            dictionaryDataImport.hasErrors = false;
+
             preloadableAssets = []
             textFiles = []
             otherFiles = []
 
-            const fileHandlesPromises = [...e.dataTransfer.items]
-                .filter((item) => item.kind === 'file')
-                .map((item) => item.getAsFileSystemHandle())
+            try {
+                const fileHandlesPromises = [...e.dataTransfer.items]
+                    .filter((item) => item.kind === 'file')
+                    .map((item) => item.getAsFileSystemHandle())
 
-            let files = []
-            preloadableAssets = []
+                // Resolve handles first to validate the drop
+                const handles = await Promise.all(fileHandlesPromises)
 
-            //console.time("Parsing dropped files")
-
-            for await (const handle of fileHandlesPromises) {
-                if (handle.kind === 'directory') {
-                    //console.log(`Directory: ${handle.name}`)
-                    let path = [handle.name]
-                    let contents = []
-
-                    await getFilesRecursively(handle, contents, path)
-
-                    contents.forEach((file) => {
-                        file.path_components = file?.path_components?.join('/')
-                    })
-
-                    files.push(...contents)
-                } else {
-                    console.log(`File: ${handle.name}`)
-                    let file = await handle.getFile()
-                    file.path_components = file.name
-
-                    files.push(file)
+                // Validation: require exactly one root item and it must be a directory
+                if (handles.length !== 1 || handles[0].kind !== 'directory') {
+                    log(
+                        "critical",
+                        "Invalid drop: please drop a single folder containing at least the dictionary.xlsx file, optionally including related MarkDown files (do not drop multiple folders or files)."
+                )
+                    throw new Error("Invalid drop: expected a single folder.");
                 }
-            }
 
-            files.forEach(async (item) => {
-                let lowerCasePath = item.path_components.toLowerCase()
-                if (lowerCasePath.endsWith('.txt') || lowerCasePath.endsWith('.md')) {
-                    //console.log('xx')
-                    let content = await readText(item)
-                    textFiles.push({ name: "/" + trimChar(item.path_components, "/"), content: content })
+                let files = []
+                preloadableAssets = []
+
+                for await (const handle of handles) {
+                    if (handle.kind === 'directory') {
+                        //console.log(`Directory: ${handle.name}`)
+                        let path = [handle.name]
+                        let contents = []
+
+                        await getFilesRecursively(handle, contents, path)
+
+                        contents.forEach((file) => {
+                            file.path_components = file?.path_components?.join('/')
+                        })
+
+                        files.push(...contents)
+                    } else {
+                        // This branch should not be reached due to the earlier validation,
+                        // but keep for safety.
+                        console.log(`File: ${handle.name}`)
+                        let file = await handle.getFile()
+                        file.path_components = file.name
+
+                        files.push(file)
+                    }
                 }
-                else {
-                    otherFiles.push({ name: "/" + trimChar(item.path_components, "/"), type: item.type, size: item.size })
-                }
-            })
 
-            //console.timeEnd("Parsing dropped files")
+                files.forEach(async (item) => {
+                    let lowerCasePath = item.path_components.toLowerCase()
+                    if (lowerCasePath.endsWith('.txt') || lowerCasePath.endsWith('.md')) {
+                        //console.log('xx')
+                        let content = await readText(item)
+                        textFiles.push({ name: "/" + trimChar(item.path_components, "/"), content: content })
+                    }
+                    else {
+                        otherFiles.push({ name: "/" + trimChar(item.path_components, "/"), type: item.type, size: item.size })
+                    }
+                })
 
-            let breakLoop = false
-            let foundSpreadsheet = false
-            files.forEach(async (item) => {
-                if (breakLoop)
-                    return
-                if (item.path_components.split('/')[1].endsWith('dictionary.xlsx')) {
-                    foundSpreadsheet = true
-                    let fileArrayBuffer = await item.arrayBuffer()
+                //console.timeEnd("Parsing dropped files")
 
-                    let extractor = new ExcelImport(fileArrayBuffer)
+                let breakLoop = false
+                let foundSpreadsheet = false
+                files.forEach(async (item) => {
+                    if (breakLoop)
+                        return
+                    if (item.path_components.split('/')[1].endsWith('dictionary.xlsx')) {
+                        foundSpreadsheet = true
+                        let fileArrayBuffer = await item.arrayBuffer()
 
-                    //console.time("Check metadata validity")                    
-                    extractor.loadMeta(dataStructure, log)
-                    checkMetaValidity()
-                    //console.timeEnd("Check metadata validity")
-                    //console.time("Postprocess metadata")
-                    postprocessMetadata()
-                    //console.timeEnd("Postprocess metadata")
+                        let extractor = new ExcelImport(fileArrayBuffer)
 
-                    let sheetsToLoad = []
+                        //console.time("Check metadata validity")                    
+                        extractor.loadMeta(dataStructure, log)
+                        checkMetaValidity()
+                        //console.timeEnd("Check metadata validity")
+                        //console.time("Postprocess metadata")
+                        postprocessMetadata()
+                        //console.timeEnd("Postprocess metadata")
 
-                    extractor.workbookSheetNames().forEach((sheetName) => {
-                        if (sheetName != "config") {
-                            sheetsToLoad.push(sheetName)
-                        }
-                    })
+                        let sheetsToLoad = []
 
-                    //console.time("Sheets loading")
-                    sheetsToLoad.forEach(function (dataSheetName) {
-                        //console.time("- Loading sheet " + dataSheetName)
-                        let sheetType = dataSheetName
-                        dataStructure.sheets.config.tables.languageProjects.data[dataStructure.common.languages.defaultLanguageCode].forEach((project) => {
-                            if (project.projectId == dataSheetName) {
-                                sheetType = "dictionary"
+                        extractor.workbookSheetNames().forEach((sheetName) => {
+                            if (sheetName != "config") {
+                                sheetsToLoad.push(sheetName)
                             }
                         })
 
-                        loadSheetData(dataSheetName, extractor.getRawSheetData(dataSheetName), sheetType)
-                        //console.timeEnd("- Loading sheet " + dataSheetName)
-                    })
-                    //console.timeEnd("Sheets loading")
+                        //console.time("Sheets loading")
+                        sheetsToLoad.forEach(function (dataSheetName) {
+                            //console.time("- Loading sheet " + dataSheetName)
+                            let sheetType = dataSheetName
+                            dataStructure.sheets.config.tables.languageProjects.data[dataStructure.common.languages.defaultLanguageCode].forEach((project) => {
+                                if (project.projectId == dataSheetName) {
+                                    sheetType = "dictionary"
+                                }
+                            })
 
-                    //console.time("Compile dictionary")
-                    let dictionary = compileDictionary()
-                    //console.timeEnd("Compile dictionary")
-                    breakLoop = true
-                    dictionaryDataImport.loadedData = dictionary
-                    dataReadyCallback(dictionary)
+                            loadSheetData(dataSheetName, extractor.getRawSheetData(dataSheetName), sheetType)
+                            //console.timeEnd("- Loading sheet " + dataSheetName)
+                        })
+                        //console.timeEnd("Sheets loading")
+
+                        //console.time("Compile dictionary")
+                        let dictionary = compileDictionary()
+                        //console.timeEnd("Compile dictionary")
+                        breakLoop = true
+                        dictionaryDataImport.loadedData = dictionary
+                        dataReadyCallback(dictionary)
+                    }
+                })
+
+                if (!foundSpreadsheet) {
+                    console.error("Could not find an XSLX spreadsheet whose name ends with 'dictionary' in the dropped folder.")
+                    log("critical", "Could not find an XSLX spreadsheet whose name ends with 'dictionary' in the dropped folder.")
                 }
-            })
-
-            if (!foundSpreadsheet) {
-                console.error("Could not find an XSLX spreadsheet whose name ends with 'dictionary' in the dropped folder.")
-            }
+            } catch (error) {
+                // [NEW] Ensure the error bubbles up to the Vue component
+                console.error("Critical Import Error:", error);
+                log("critical", "Critical Import Error: " + (error.message || String(error)));            }
         },
 
     }
 
     let dictionaryDataImport = {
-        loggedMessages: [],
+        loggedMessages: ref([]),
         hasErrors: false,
 
         loadedData: {},
 
         dataFolderDropHandler: async function (e, dataReadyCallback) {
-            FilesystemOperations.dataFolderDropHandler(e, dataReadyCallback)
+            await FilesystemOperations.dataFolderDropHandler(e, dataReadyCallback)
         },
 
         getCompiledDictionary() {
@@ -1729,7 +1751,7 @@ export let dictionaryDataStructure = {
             tables: {
                 supportedLanguages: {
                     name: "Supported interface languages",
-                    description: "This table allows for declaration of one or more languages in which the checklist is presented. It is possible to create checklists which will display data in different languages. See the <a href=\"us-birds.xlsx\">Birds of the US</a> sample checklist which is a bilingual English/French checklist, and scan through headers on all three sheets for column names ending with \":fr\" (French version) or \":en\" (default, English version). Once you have declared your language codes and names you wish to use (en / English and fr / French in the sample), you can append \":\" and langauge code (e.g. \":fr\") to columns which are allowed to be multilingual to mark them to be used for a specific language version of the checklist.\nYou have to define at least one language for your checklist.",
+                    description: "This table allows for declaration of one or more languages in which the checklist is presented. It is possible to create checklists which will display data in different languages. See the <a href=\"us-birds.xlsx\">Birds of the US</a> sample checklist, and scan through headers on all three sheets for column names ending with \":fr\" (French version) or \":en\" (default, English version). Once you have declared your language codes and names you wish to use (en / English and fr / French in the sample), you can append \":\" and langauge code (e.g. \":fr\") to columns which are allowed to be multilingual to mark them to be used for a specific language version of the checklist.\nYou have to define at least one language for your checklist.",
                     columns: {
                         code: {
                             name: "Code",

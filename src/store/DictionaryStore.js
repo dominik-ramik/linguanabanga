@@ -1,4 +1,4 @@
-import { watch } from 'vue'
+import { watch, computed } from 'vue'
 import { defineStore, storeToRefs } from 'pinia'
 import { useRouter, useRoute } from "vue-router";
 import { useDictionary, reloadDictionary } from '@/composables/useDictionary.js';
@@ -15,9 +15,48 @@ export const useDictionaryStore = defineStore('dictionary', () => {
   const router = useRouter();
   const route = useRoute();
 
-  const dictionary = storeToRefs(useDictionary("/data/data.json", i18n.global.locale))
-  const filter = storeToRefs(useDictionaryFilter(dictionary))
-  const cache = storeToRefs(useAssetsCacheManagement(i18n.global.locale.value, filter.selectedProjects, dictionary.preloadableAssets))
+  // Use the raw composable object (so useDictionaryFilter receives the same shape it expects)
+  const rawDictionary = useDictionary("/data/data.json", i18n.global.locale)
+  // Convert properties of the composable into refs usable from the store consumers
+  const dictionary = storeToRefs(rawDictionary)
+
+  // Expose a plain boolean isReady to avoid consumers having to unwrap nested refs/computed
+  const isReady = computed(() => {
+    const cand = dictionary?.isReady
+    if (cand && typeof cand === 'object' && 'value' in cand) {
+      return cand.value === true
+    }
+    return Boolean(cand)
+  })
+
+  // Plain, unwrapped portalAbout string for templates/components (handles nested ref/computed)
+  const portalAboutPlain = computed(() => {
+    const p = dictionary?.portalAbout
+    // p may be undefined, a ref whose .value is a computed ref, or a ref to string
+    if (!p) return ""
+    const first = p.value
+    if (first && typeof first === "object" && "value" in first) {
+      return first.value || ""
+    }
+    return first || ""
+  })
+
+  // If the loader reports an error, navigate user to data-management so they can upload/import data.
+  watch(
+    () => rawDictionary.loadError,
+    (err) => {
+      if (err) {
+        router.push({
+          name: "settings",
+          params: { locale: i18n.global.locale.value, tabId: "data-management" },
+        });
+      }
+    }
+  )
+
+  // Provide the filter/composites the raw composable (not the storeToRefs wrapper)
+  const filter = useDictionaryFilter(rawDictionary)
+  const cache = useAssetsCacheManagement(i18n.global.locale.value, filter.selectedProjects, rawDictionary.preloadableAssets)
 
   function downloadEnqueuedAssets() {
     cache.processQueue.value = true;
@@ -135,7 +174,7 @@ export const useDictionaryStore = defineStore('dictionary', () => {
   watch(
     () => dictionary.isReady.value,
     () => {
-      if (dictionary.isReady) {
+      if (dictionary.isReady.value) {
         portalName.value = dictionary.portalName?.value
       }
     }
@@ -198,6 +237,8 @@ export const useDictionaryStore = defineStore('dictionary', () => {
 
   return {
     dictionary,
+    isReady,
+    portalAboutPlain,
     filter,
     cache,
     downloadEnqueuedAssets,

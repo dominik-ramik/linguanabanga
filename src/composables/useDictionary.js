@@ -1,10 +1,11 @@
-import { computed, shallowRef } from 'vue'
+import { computed, shallowRef, ref } from 'vue'
 import axios from "axios";
 import { normalizeURLPathname } from '@/utils/normalizeURLPathname.js'
 
 const dictionaryData = shallowRef(null)
 
 export function useDictionary(jsonDataUrl, langCode) {
+    const loadError = ref(false)
     const lang = computed(() => {
         if (Object.keys(dictionaryData.value?.versions).includes(langCode.value)) {
             return langCode.value
@@ -16,6 +17,10 @@ export function useDictionary(jsonDataUrl, langCode) {
     })
 
     const isReady = computed(() => {
+        console.log("isReady check:", dictionaryData.value != null)
+
+        console.log("Dictionary data:", dictionaryData.value)
+
         return dictionaryData.value != null
     })
 
@@ -131,23 +136,34 @@ export function useDictionary(jsonDataUrl, langCode) {
         axios
             .get(jsonDataUrl)
             .then(function (response) {
-                // handle success
-                reloadDictionary(response.data)
-                console.log(dictionaryData.value)
+                // Requirement 1: Check if response.data is a proper object and looks like our dictionary
+                if (response.data && typeof response.data === 'object' && response.data.versions) {
+                    reloadDictionary(response.data)
+                    loadError.value = false
+                    console.log("Dictionary loaded successfully", response.data, isReady.value);
+                } else {
+                    // It's not a valid dictionary object
+                    throw new Error("Data retrieved is not a valid dictionary object (missing 'versions' key or invalid JSON).")
+                }
 
                 window.setTimeout(() => {
                     //if timeout needed for demo purposes put loadDictionary here
                 }, 4000);
             })
             .catch(function (error) {
-                // handle error
-                console.log(error);
+                // Requirement 2: Error handling and redirection
+                console.error("Failed to load dictionary data:", error);
+
+                // Ensure data is null
+                dictionaryData.value = null;
+
+                // Mark load error so callers can decide what to do (navigate, show UI, etc.)
+                loadError.value = true
             })
             .finally(function () {
                 // always executed
             })
     }
-
 
     fetch(jsonDataUrl)
 
@@ -165,6 +181,7 @@ export function useDictionary(jsonDataUrl, langCode) {
         supportedLanguages,
         shortcodes,
         menu,
+        loadError,
     }
 }
 

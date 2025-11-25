@@ -4,6 +4,10 @@ import router from "@/router";
 const props = defineProps(["tabId"]);
 const tab = ref(props.tabId ? props.tabId : null);
 
+import { useDictionaryStore } from "@/store/DictionaryStore";
+const dictionaryStore = useDictionaryStore();
+
+
 watch(
   () => tab.value,
   (newValue) => {
@@ -14,7 +18,7 @@ watch(
 
 <template>
   <v-tabs v-model="tab" align-tabs="center">
-    <v-tab value="dictionary-selection" prepend-icon="mdi-web">Settings</v-tab>
+    <v-tab v-if="dictionaryStore.dictionary.isReady === true" value="dictionary-selection" prepend-icon="mdi-web">Settings</v-tab>
     <v-tab value="data-management" prepend-icon="mdi-database-arrow-up"
       >Manage data</v-tab
     >
@@ -33,7 +37,7 @@ watch(
         </div>
       </v-card>
     </v-tabs-window-item>
-    <v-tabs-window-item value="data-management">
+    <v-tabs-window-item value="data-management">      
       <spreadsheet-importer></spreadsheet-importer>
     </v-tabs-window-item>
   </v-tabs-window>

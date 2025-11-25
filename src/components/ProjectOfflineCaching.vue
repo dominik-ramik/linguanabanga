@@ -5,7 +5,7 @@ const dictionaryStore = useDictionaryStore();
 </script>
 
 <template>
-  <div v-if="dictionaryStore.filter.selectedProjects.length > 0" class="d-flex flex-column align-center">
+  <div v-if="dictionaryStore.filter.selectedProjects?.length > 0" class="d-flex flex-column align-center">
     <div>
       <div v-if="dictionaryStore.cache.currentlyCachedAssets == null">
         <div class="d-flex">
@@ -75,7 +75,7 @@ const dictionaryStore = useDictionaryStore();
               color="primary"
               class="mt-3 mb-3"
               >Prepare offline use for
-              {{ dictionaryStore.filter.selectedProjects.length }}
+              {{ dictionaryStore.filter.selectedProjects?.length || 0 }}
               dictionaries</v-btn
             >
           </div>
