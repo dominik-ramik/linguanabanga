@@ -25,12 +25,12 @@ const menu = computed(() => {
       icon: "mdi-book-information-variant",
     },
     {
-      type: "divider",
-    },
-    {
       title: "mainMenu.aboutAppTitle",
       pathName: "about-app",
       icon: "mdi-information-outline",
+    },
+    {
+      type: "divider",
     },
     {
       title: "mainMenu.selectDictionary",
@@ -107,6 +107,9 @@ const selectedProjects = computed(() => {
         "></v-list-item>
   </v-list>
   <v-divider></v-divider>
+  <div class="ma-2 text-caption">
+    Powered by <span class="font-weight-bold" style="cursor: pointer;" onClick="window.open('https://github.com/dominik-ramik/lingua-nabanga', '_blank')">{{ $t('appName') }}</span>
+  </div>
   <div class="ma-2 text-caption" v-if="dictionaryStore.filter.selectedProjects?.length > 0">
     <div class="font-weight-bold">Open projects</div>
     <ShowMoreItems :items="Object.keys(selectedProjects).map((p) => selectedProjects[p].projectId)
@@ -115,6 +118,5 @@ const selectedProjects = computed(() => {
         {{ selectedProjects[slotProps.currentItem].projectName }}
       </div>
     </ShowMoreItems>
-
   </div>
 </template>
