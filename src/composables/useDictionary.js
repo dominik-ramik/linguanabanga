@@ -222,7 +222,7 @@ export function unpackReferences(data, logFn, simulateOnly) {
                         })
                     }
 
-                    linkReference(entry, reference.columnName.replaceAll("#", ""), referencedTableData, reference.referenceToTableType, simulateOnly)
+                    linkReference(entry, reference.columnName.replaceAll("#", ""), referencedTableData, reference.referenceToTableType, simulateOnly, undefined, table.meta.tableType, entry.id)
                 }
 
                 entry.__meta.table = table.meta
@@ -318,7 +318,7 @@ export function unpackReferences(data, logFn, simulateOnly) {
         return meta
     }
 
-    function linkReference(entry, path, targetTableData, targetTableType, simulateOnly, accumulator) {
+    function linkReference(entry, path, targetTableData, targetTableType, simulateOnly, accumulator, sourceTableType, sourceEntryId) {
         if (accumulator === undefined) {
             accumulator = ""
         }
@@ -335,7 +335,7 @@ export function unpackReferences(data, logFn, simulateOnly) {
                         let linkedData = targetTableData.find((item) => item.id == id)
                         if (linkedData === undefined) {
                             //TODO enable logfn
-                            logFn && logFn("error", "Failed to find " + id + " (in path '" + path + "') in " + targetTableType)
+                            logFn && logFn("error", "Failed to find " + id + " (in path '" + path + "') in " + targetTableType + " [source sheet: '" + sourceTableType + "', entry id: '" + sourceEntryId + "']")
                         }
                         if (!simulateOnly) {
                             entry[property][index] = linkedData
@@ -346,12 +346,12 @@ export function unpackReferences(data, logFn, simulateOnly) {
             }
             else if (path.startsWith(accumulator + property + ".")) {
                 if (typeof value === 'object') {
-                    linkReference(value, path, targetTableData, targetTableType, simulateOnly, accumulator + property + ".")
+                    linkReference(value, path, targetTableData, targetTableType, simulateOnly, accumulator + property + ".", sourceTableType, sourceEntryId)
                 }
 
                 if (Array.isArray(value)) {
                     for (const element of value) {
-                        linkReference(element, path, targetTableData, targetTableType, simulateOnly, accumulator + property + ".")
+                        linkReference(element, path, targetTableData, targetTableType, simulateOnly, accumulator + property + ".", sourceTableType, sourceEntryId)
                     }
                 }
             }

@@ -72,9 +72,11 @@ const selectedProjects = computed(() => {
       obj[key] = raw[key];
       return obj;
     }, {});
+    /*
   return dictionaryStore.dictionary.projectsMeta.value.filter((p) =>
     dictionaryStore.filter.selectedProjects.value.includes(p.projectId)
   );
+  */
 });
 </script>
 

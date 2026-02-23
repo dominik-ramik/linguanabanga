@@ -26,7 +26,7 @@ watch(
   () => dictionaryStore.loadFailed,
   (failed) => {
     if (failed) {
-      router.push({ name: 'settings', params: { locale: inferLocale() } });
+      router.push({ name: 'settings', params: { locale: inferLocale(), tabId: 'data-management' } });
     }
   }
 );
