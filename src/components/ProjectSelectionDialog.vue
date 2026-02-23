@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import { useDictionaryStore } from "@/store/DictionaryStore";
-import { i18n } from "@/i18n";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const dictionaryStore = useDictionaryStore();
 
@@ -80,26 +82,34 @@ const isActive = ref(true);
     <template v-slot:activator="{ props: activatorProps }">
       <div>
         <div>
-          <v-chip color="primary" v-for="project in selectedProjectsFullDetails" v-bind:key="project" class="mr-1">{{
-            project.projectName }}</v-chip>
+          <v-chip color="primary" v-for="project in selectedProjectsFullDetails" v-bind:key="project" class="mr-1">
+            {{ project.projectName }}
+          </v-chip>
         </div>
-        <v-btn prepend-icon="mdi-book-alphabet" v-bind="activatorProps" class="ma-3 mt-5" color="primary">Select
-          dictionaries</v-btn>
+        <v-btn prepend-icon="mdi-book-alphabet" v-bind="activatorProps" class="ma-3 mt-5" color="primary">
+          {{ t("projectSelectionDialog.selectDictionaries") }}
+        </v-btn>
       </div>
     </template>
 
     <template v-slot:default="{ isActive }">
-      <v-card title="Dictionary selection">
+      <v-card :title="t('projectSelectionDialog.dialogTitle')">
         <v-card-text style="max-height: 80vh; min-height: 80vh; overflow-y: auto;">
           <div class="mb-2">
-            Select one or several dictionaries you want to search through
+            {{ t('projectSelectionDialog.selectHint') }}
           </div>
-            <v-treeview :items="pathsToTree" v-model:selected="dictionaryStore.filter.selectedProjects"
-              density="compact" item-value="id" select-strategy="classic" selectable></v-treeview>
+          <v-treeview
+            :items="pathsToTree"
+            v-model:selected="dictionaryStore.filter.selectedProjects"
+            density="compact"
+            item-value="id"
+            select-strategy="classic"
+            selectable
+          ></v-treeview>
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn text="Close" @click="isActive.value = false"></v-btn>
+          <v-btn :text="t('projectSelectionDialog.close')" @click="isActive.value = false"></v-btn>
         </v-card-actions>
       </v-card>
     </template>

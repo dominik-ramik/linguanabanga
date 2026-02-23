@@ -1,11 +1,12 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { RouterView } from "vue-router";
 import { useDisplay } from "vuetify";
 import { useDictionaryStore } from "@/store/DictionaryStore.js";
 import SplashScreen from "@/views/SplashScreen.vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useAppSettingsStore } from "@/store/AppSettingsStore.js";
+import { inferLocale } from "@/i18n";
 
 import logoLightTheme from "@/assets/logo.svg";
 import logoDarkTheme from "@/assets/logo_dark.svg";
@@ -18,6 +19,17 @@ const appSettings = useAppSettingsStore();
 
 //load dictionary data
 const dictionaryStore = useDictionaryStore();
+const router = useRouter();
+
+// Navigate to settings if data failed to load
+watch(
+  () => dictionaryStore.loadFailed,
+  (failed) => {
+    if (failed) {
+      router.push({ name: 'settings', params: { locale: inferLocale() } });
+    }
+  }
+);
 
 const { mobile } = useDisplay();
 
@@ -69,7 +81,7 @@ const shouldShowPanel = computed({
 
 <template>
   <v-app
-    v-if="!dictionaryStore.dictionary.isReady || loadingDelay < maxTimeout"
+    v-if="(!dictionaryStore.dictionary.isReady && !dictionaryStore.loadFailed) || loadingDelay < maxTimeout"
   >
     <SplashScreen v-if="true" />
     <!-- TODO remove in production -->

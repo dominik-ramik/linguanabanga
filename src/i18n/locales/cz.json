@@ -1,11 +1,15 @@
 {
   "appName": "LinguaNabanga",
   "mainMenu": {
-    "aboutAppTitle": "O @:appName",
-    "aboutAppText": "@:appName je webová aplikace pro tvorbu a procházení vícejazyčných, projektově zaměřených slovníků. Načítá strukturovaná data z JSONu, podporuje obsah v Markdownu a nabízí rychlé fulltextové vyhledávání s konfigurovatelnou tolerancí.\n\n\n\nFunguje offline (PWA) a podporuje flexibilní typy dat i způsoby zobrazení, včetně obrázků a audia.\n\n\n\nFormát dat: obsah je uložen v jednoduchém excelovém sešitu (XLSX) a v přehledné adresářové struktuře pro média. Pomocí vestavěného importéru je můžete zkompilovat do jediného souboru data.json.\n\n\n\nPůvodně vytvořeno pro výzkumný projekt *Plants mo Pipol blong Vanuatu*. Vyvíjí a udržuje **Dominik M. Ramík** — [dominicweb.eu](https://dominicweb.eu).\n\n\n\nZdrojový kód a hlášení problémů: [github.com/dominik-ramik/lingua-nabanga](https://github.com/dominik-ramik/lingua-nabanga).",
-    "manage": "Spravovat",
+    "learning": "Výukové nástroje",
     "aboutDictionary": "O tomto slovníku",
-    "selectDictionary": "Vybrat slovník"
+    "aboutAppTitle": "O @:appName",
+    "aboutAppText": "@:appName je webová aplikace pro tvorbu a procházení vícejazyčných, projektově zaměřených slovníků. Načítá strukturovaná data z JSONu, podporuje obsah v Markdownu a nabízí rychlé fulltextové vyhledávání s konfigurovatelnou tolerancí.\n\n\n\nFunguje offline (PWA) a podporuje flexibilní typy dat i způsoby zobrazení, včetně obrázků a audia.\n\n\n\nFormát dat: obsah je uložen v jednoduchém excelovém sešitu (XLSX) a v přehledné adresářové struktuře pro média. Pomocí vestavěného importéru je můžete zkompilovat do jediného souboru data.json.\n\n\n\nPůvodně vytvořeno pro výzkumný projekt *Plants mo Pipol blong Vanuatu*. Vyvíjí a udržuje **Dominik M. Ramík** — [dominicweb.eu](https://dominicweb.eu).\n\n\n\nZdrojový kód a hlášení problémů: [github.com/dominik-ramik/linguanabanga](https://github.com/dominik-ramik/linguanabanga).",
+    "settings": "Nastavení",
+    "selectDictionary": "Vybrat slovník",
+    "selectDisplayLanguage": "Vyberte jazyk zobrazení",
+    "availableDictionaries": "Dostupné slovníky:",
+    "noDictionariesAvailable": "Žádné slovníky nejsou k dispozici"
   },
   "manage": {
     "heading": "Import dat"
@@ -16,6 +20,17 @@
     "action": "Akce",
     "show": "Zobrazit tento slovník",
     "hide": "Skrýt tento slovník",
-    "hintNoSelection": "Není vybrán žádný slovník. Vyberte jeden nebo více slovníků k zobrazení."
+    "hintNoSelection": "Není vybrán žádný slovník. Vyberte jeden nebo více slovníků k zobrazení.",
+    "autoOfflineReadyTitle": "Udržovat vybrané slovníky připravené pro offline použití",
+    "autoOfflineReadyDesc": "Textový obsah je vždy dostupný offline. Zapněte tuto volbu, pokud chcete také stáhnout obrázky a zvukové nahrávky pro vybrané slovníky a mít je k dispozici i bez připojení k internetu.",
+    "autoOfflineReadyWarning": "Obrázky a nahrávky nemusí být offline dostupné.",
+    "selectedDictionaries": "Vybrané slovníky:",
+    "all": "Odevšad",
+    "filterByMenuPath": "Zobrazit slovníky z:",
+    "selectMoreTitle": "Vybrat další slovníky?",
+    "selectMoreText": "Chcete vybrat další slovníky?",
+    "selectMoreYes": "Ano",
+    "selectMoreNo": "Ne",
+    "confirmSelection": "Potvrdit výběr slovníků"
   }
 }

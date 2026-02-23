@@ -3,10 +3,17 @@ import axios from "axios";
 import { normalizeURLPathname } from '@/utils/normalizeURLPathname.js'
 
 const dictionaryData = shallowRef(null)
+const loadFailed = shallowRef(false)
 
 export function useDictionary(jsonDataUrl, langCode) {
     const lang = computed(() => {
-        if (Object.keys(dictionaryData.value?.versions).includes(langCode.value)) {
+        console.log("Dictionary data", dictionaryData.value)
+
+        if (!dictionaryData.value?.versions) {
+            return undefined
+        }
+
+        if (Object.keys(dictionaryData.value.versions).includes(langCode.value)) {
             return langCode.value
         }
         else {
@@ -132,6 +139,12 @@ export function useDictionary(jsonDataUrl, langCode) {
             .get(jsonDataUrl)
             .then(function (response) {
                 // handle success
+                if (typeof response.data !== 'object') {
+                    console.error("Dictionary data is not valid JSON")
+                    loadFailed.value = true;
+                    throw new Error("Dictionary data is not valid JSON");
+                }
+
                 reloadDictionary(response.data)
                 console.log(dictionaryData.value)
 
@@ -141,7 +154,8 @@ export function useDictionary(jsonDataUrl, langCode) {
             })
             .catch(function (error) {
                 // handle error
-                console.log(error);
+                console.error("Failed to load dictionary data:", error);
+                loadFailed.value = true;
             })
             .finally(function () {
                 // always executed
@@ -158,6 +172,7 @@ export function useDictionary(jsonDataUrl, langCode) {
         portalName,
         portalAbout,
         isReady,
+        loadFailed,
         specialCharacters,
         projectsMeta,
         sheetDataDetails,

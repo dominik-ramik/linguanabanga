@@ -32,15 +32,15 @@ const menu = computed(() => {
     {
       type: "divider",
     },
-    {
+    ...(dictionaryStore.dictionary.isReady ? [{
       title: "mainMenu.selectDictionary",
       pathName: "select-dictionary",
       icon: "mdi-book-alphabet",
-    },
+    }] : []),
     { title: "mainMenu.settings", pathName: "settings", icon: "mdi-cog" },
   ];
 
-  let menu = dictionaryStore.dictionary.menu.map((menuItem) => {
+  let menu = (dictionaryStore.dictionary.menu || []).map((menuItem) => {
     return {
       title: menuItem.title,
       pathName: "search",
@@ -63,8 +63,8 @@ const expectedTable = computed(() => {
 });
 
 const selectedProjects = computed(() => {
-  let raw = dictionaryStore.dictionary.projectsMeta;
-  let allowed = dictionaryStore.filter.selectedProjects;
+  let raw = dictionaryStore.dictionary.projectsMeta || {};
+  let allowed = dictionaryStore.filter.selectedProjects || [];
 
   return Object.keys(raw)
     .filter((key) => allowed.includes(key))

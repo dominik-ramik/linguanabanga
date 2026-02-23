@@ -3,7 +3,7 @@ import { defineStore, storeToRefs } from 'pinia'
 import { useRouter, useRoute } from "vue-router";
 import { useDictionary, reloadDictionary } from '@/composables/useDictionary.js';
 import { useDictionaryFilter, serializeFilter, deserializeFilter } from '@/composables/useDictionaryFilter.js';
-import { useAssetsCacheManagement } from '@/composables/useAssetsCacheManagement.js';
+//import { useAssetsCacheManagement } from '@/composables/useAssetsCacheManagement.js';
 import getDataByPath from '@/utils/GetDataByPath.js'
 import getMainItem from '@/utils/getMainItem.js'
 import { useStorage } from '@vueuse/core'
@@ -17,6 +17,8 @@ export const useDictionaryStore = defineStore('dictionary', () => {
 
   const dictionary = storeToRefs(useDictionary("/data/data.json", i18n.global.locale))
   const filter = storeToRefs(useDictionaryFilter(dictionary))
+
+  /*
   const cache = storeToRefs(useAssetsCacheManagement(i18n.global.locale.value, filter.selectedProjects, dictionary.preloadableAssets))
 
   function downloadEnqueuedAssets() {
@@ -32,6 +34,7 @@ export const useDictionaryStore = defineStore('dictionary', () => {
       type: "CLEAR_DATA_ASSETS",
     });
   }
+  */
 
   const portalName = useStorage("portal-name", "", localStorage)
 
@@ -199,15 +202,16 @@ export const useDictionaryStore = defineStore('dictionary', () => {
   return {
     dictionary,
     filter,
-    cache,
-    downloadEnqueuedAssets,
-    stopDownloadingEnqueuedAssets,
-    clearAssetsCache,
+    //cache,
+    //downloadEnqueuedAssets,
+    //stopDownloadingEnqueuedAssets,
+    //clearAssetsCache,
     setFilters,
     serializeDictionaryFilter,
     findItem,
     getReferencesList,
     reloadDictionaryData,
     favorites,
+    loadFailed: dictionary.loadFailed,
   }
 })

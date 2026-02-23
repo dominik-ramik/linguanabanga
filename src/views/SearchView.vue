@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import { useDictionaryStore } from "@/store/DictionaryStore.js";
+import DictionarySelectionPanel from "@/components/DictionarySelectionPanel.vue";
 
 const dictionaryStore = useDictionaryStore();
 
@@ -42,7 +43,34 @@ const currentPageData = computed(() => {
 
   return paginatedResults;
 });
+
+const hasSelectedProjects = computed(
+  () => Array.isArray(dictionaryStore.filter?.selectedProjects) && dictionaryStore.filter.selectedProjects.length > 0
+);
 </script>
+
+<template>
+  <div>
+    <DictionarySelectionPanel v-if="!hasSelectedProjects" />
+    <template v-else>
+      <div v-if="dictionaryStore.filter.results?.length == 0">
+        Nothing found that would satisfy your query.
+      </div>
+      <div v-else>
+        <TreefiedSearchResults :results="currentPageData" />
+        <v-pagination
+          v-if="totalPages > 1"
+          v-model="currentPageIndex"
+          :length="totalPages"
+          density="default"
+        ></v-pagination>
+        <div class="d-flex justify-center text-caption">
+          Found {{ dictionaryStore.filter.results?.length }} results
+        </div>
+      </div>
+    </template>
+  </div>
+</template>
 
 <style scoped>
 .triangle {
@@ -53,19 +81,3 @@ const currentPageData = computed(() => {
   background-position: left, right;
 }
 </style>
-
-<template>
-  <div v-if="dictionaryStore.filter.results?.length == 0">Nothing found that would satisfy your query.</div>
-  <div v-else>
-    <TreefiedSearchResults :results="currentPageData" />
-    <v-pagination
-      v-if="totalPages > 1"
-      v-model="currentPageIndex"
-      :length="totalPages"
-      density="default"
-    ></v-pagination>
-    <div class="d-flex justify-center text-caption">
-      Found {{ dictionaryStore.filter.results?.length }} results
-    </div>
-  </div>
-</template>

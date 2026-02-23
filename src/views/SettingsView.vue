@@ -1,6 +1,10 @@
 <script setup>
 import { ref, watch } from "vue";
 import router from "@/router";
+import { useDictionaryStore } from "@/store/DictionaryStore";
+
+const dictionaryStore = useDictionaryStore();
+
 const props = defineProps(["tabId"]);
 const tab = ref(props.tabId ? props.tabId : null);
 
@@ -23,7 +27,13 @@ watch(
   <v-tabs-window v-model="tab">
     <v-tabs-window-item value="dictionary-selection">
       <v-card class="pa-3 ma-1">
-        <projects-selector></projects-selector>
+        <language-selection-dialog
+          v-if="
+            dictionaryStore.dictionary.allVersionsProjectsMeta &&
+            Object.keys(dictionaryStore.dictionary.allVersionsProjectsMeta)
+              .length > 1
+          "
+        ></language-selection-dialog>
       </v-card>
       <v-card class="ma-1">
         <div class="d-flex flex-column ma-5">

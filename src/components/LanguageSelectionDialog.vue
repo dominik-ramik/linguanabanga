@@ -1,6 +1,5 @@
 <script setup>
-import { ref, computed, watch } from "vue";
-
+import { ref } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useDictionaryStore } from "@/store/DictionaryStore";
 import { i18n } from "@/i18n";
@@ -11,55 +10,55 @@ const route = useRoute();
 const dictionaryStore = useDictionaryStore();
 
 function changeLocale(locale) {
-  setTimeout(() => {
-    isActive.value = true;
-  }, 500);
   router.push({ name: route.name, params: { locale: locale } });
 }
-
-const isActive = ref(false);
 </script>
 
 <template>
-  <v-dialog max-width="300">
-    <template v-slot:activator="{ props: activatorProps }">
-      <div>
-        <v-btn
-          prepend-icon="mdi-web"
-          v-bind="activatorProps"
-          class="ma-3 mt-5"
-          color="primary"
-          >Select display language</v-btn
-        >
-      </div>
-    </template>
-
-    <template v-slot:default="{ isActive }">
-      <v-card title="Language">
-        <v-card-text style="min-height: 200px">
-          <div
-            v-for="(meta, langKey) in dictionaryStore.dictionary
-              .allVersionsProjectsMeta"
-            v-bind:key="langKey"
-          >
+  <div class="language-selection-list pa-4">
+    <div class="mb-2 font-weight-medium" style="font-size: 1.2em;">
+      {{ i18n.global.t("mainMenu.selectDisplayLanguage") }}
+    </div>
+    <div>
+      <div
+        v-for="(meta, langKey) in dictionaryStore.dictionary.allVersionsProjectsMeta"
+        :key="langKey"
+        class="mb-4"
+      >
+        <v-row class="align-center" no-gutters>
+          <v-col cols="12" sm="auto">
             <v-btn
               color="primary"
               class="ma-2"
-              block
               @click="changeLocale(langKey)"
               :disabled="langKey == i18n.global.locale.value"
+              prepend-icon="mdi-web"
             >
-              <div>
-                {{ meta.languageInfo.name }}
-              </div>
+              {{ meta.languageInfo.name }}
             </v-btn>
-          </div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn text="Close" @click="isActive.value = false"></v-btn>
-        </v-card-actions>
-      </v-card>
-    </template>
-  </v-dialog>
+          </v-col>
+          <v-col cols="12" sm="auto">
+            <span class="font-weight-bold ml-4">
+              <template v-if="meta.projects && Object.keys(meta.projects).length > 0">
+                {{ i18n.global.t("mainMenu.availableDictionaries") }}
+              </template>
+              <template v-else>
+                {{ i18n.global.t("mainMenu.noDictionariesAvailable") }}
+              </template>
+            </span>
+            <div class="ml-2" style="font-size: 0.98em; display: inline;">
+              <span v-if="meta.projects && Object.keys(meta.projects).length > 0">
+                <span
+                  v-for="(proj, idx) in Object.values(meta.projects).sort((a, b) => a.projectName.localeCompare(b.projectName))"
+                  :key="proj.projectId"
+                >
+                  {{ proj.projectName }}<span v-if="idx < Object.keys(meta.projects).length - 1">, </span>
+                </span>
+              </span>
+            </div>
+          </v-col>
+        </v-row>
+      </div>
+    </div>
+  </div>
 </template>

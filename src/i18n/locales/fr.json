@@ -1,11 +1,15 @@
 {
   "appName": "LinguaNabanga",
   "mainMenu": {
-    "aboutAppTitle": "À propos de @:appName",
-    "aboutAppText": "@:appName est une application web pour créer et parcourir des dictionnaires multilingues organisés par projet. Elle charge des données structurées depuis du JSON, prend en charge le contenu Markdown et propose une recherche textuelle rapide avec une tolérance configurable.\n\n\n\nElle fonctionne hors ligne (PWA) et prend en charge des types de données et des présentations flexibles, y compris les images et l’audio.\n\n\n\nFormat des données : le contenu est conservé dans un simple tableur Excel (XLSX) et une arborescence de dossiers pour les médias. Vous pouvez compiler le tableur et les dossiers en un seul fichier data.json avec l’outil d’importation intégré.\n\n\n\nCréée à l’origine pour le projet de recherche *Plants mo Pipol blong Vanuatu*. Développée et maintenue par **Dominik M. Ramík** — [dominicweb.eu](https://dominicweb.eu).\n\n\n\nCode source et tickets : [github.com/dominik-ramik/lingua-nabanga](https://github.com/dominik-ramik/lingua-nabanga).",
-    "manage": "Gérer",
+    "learning": "Outils d'apprentissage",
     "aboutDictionary": "À propos de ce dictionnaire",
-    "selectDictionary": "Sélectionner le dictionnaire"
+    "aboutAppTitle": "À propos de @:appName",
+    "aboutAppText": "@:appName est une application web pour créer et parcourir des dictionnaires multilingues organisés par projet. Elle charge des données structurées depuis du JSON, prend en charge le contenu Markdown et propose une recherche textuelle rapide avec une tolérance configurable.\n\n\n\nElle fonctionne hors ligne (PWA) et prend en charge des types de données et des présentations flexibles, y compris les images et l’audio.\n\n\n\nFormat des données : le contenu est conservé dans un simple tableur Excel (XLSX) et une arborescence de dossiers pour les médias. Vous pouvez compiler le tableur et les dossiers en un seul fichier data.json avec l’outil d’importation intégré.\n\n\n\nCréée à l’origine pour le projet de recherche *Plants mo Pipol blong Vanuatu*. Développée et maintenue par **Dominik M. Ramík** — [dominicweb.eu](https://dominicweb.eu).\n\n\n\nCode source et tickets : [github.com/dominik-ramik/linguanabanga](https://github.com/dominik-ramik/linguanabanga).",
+    "settings": "Réglages",
+    "selectDictionary": "Sélectionner le dictionnaire",
+    "selectDisplayLanguage": "Sélectionner la langue d'affichage",
+    "availableDictionaries": "Dictionnaires disponibles :",
+    "noDictionariesAvailable": "Aucun dictionnaire disponible"
   },
   "manage": {
     "heading": "Importer données"
@@ -16,6 +20,17 @@
     "action": "Action",
     "show": "Afficher ce dictionnaire",
     "hide": "Masquer ce dictionnaire",
-    "hintNoSelection": "Aucun dictionnaire n'est sélectionné. Sélectionnez un ou plusieurs dictionnaires à afficher."
+    "hintNoSelection": "Aucun dictionnaire n'est sélectionné. Sélectionnez un ou plusieurs dictionnaires à afficher.",
+    "autoOfflineReadyTitle": "Garder les dictionnaires sélectionnés prêts pour une utilisation hors ligne",
+    "autoOfflineReadyDesc": "Le contenu textuel est toujours disponible hors ligne. Activez cette option pour aussi télécharger les images et enregistrements audio de vos dictionnaires sélectionnés, afin de les consulter sans connexion internet.",
+    "autoOfflineReadyWarning": "Les images et enregistrements peuvent ne pas être disponibles hors ligne.",
+    "selectedDictionaries": "Dictionnaires sélectionnés :",
+    "all": "Partout",
+    "filterByMenuPath": "Afficher les dictionnaires de :",
+    "selectMoreTitle": "Sélectionner d'autres dictionnaires ?",
+    "selectMoreText": "Voulez-vous sélectionner d'autres dictionnaires ?",
+    "selectMoreYes": "Oui",
+    "selectMoreNo": "Non",
+    "confirmSelection": "Confirmer la sélection des dictionnaires"
   }
 }

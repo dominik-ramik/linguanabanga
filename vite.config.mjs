@@ -54,12 +54,12 @@ export default defineConfig({
     VitePWA({
       injectRegister: null,
       strategies: 'injectManifest',
-      srcDir: 'src',
+      srcDir: 'src', 
       filename: 'service-worker.js',
       registerType: null,
       includeAssets: ['assets/*.*'],
       devOptions: {
-        enabled: true, // Enable SW in dev mode
+        enabled: true,
         type: 'module',
         navigateFallback: 'index.html',
       },

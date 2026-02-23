@@ -8,7 +8,7 @@ import AboutDictionary from '@/views/AboutDictionary.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import LanguageSelectorView from '@/views/LanguageSelectorView.vue'
 
-import { i18n, inferLocale, isLocaleSupported, setLocale } from "@/i18n"
+import { inferLocale, isLocaleSupported, setLocale } from "@/i18n"
 import { useStorage } from '@vueuse/core'
 import { useDictionaryStore } from '@/store/DictionaryStore'
 
@@ -20,11 +20,12 @@ const router = createRouter({
       path: '/:locale?',
       name: 'home',
       meta: { requiresProjectsSelected: false },
-      redirect:
-        (persistentTable.value ?
-          { name: 'search', params: { locale: inferLocale(), table: persistentTable.value } } :
-          { name: 'about-dictionary', params: { locale: inferLocale() } }
-        )
+      redirect: () => {
+        const locale = inferLocale();
+        return persistentTable.value
+          ? { name: 'search', params: { locale, table: persistentTable.value } }
+          : { name: 'about-dictionary', params: { locale } }
+      }
     },
     {
       path: '/:locale/search/:table',
@@ -76,40 +77,57 @@ const router = createRouter({
   },
 })
 
-router.beforeEach((to, from) => {
-
+router.beforeEach((to) => {
   const dictionaryStore = useDictionaryStore();
-  
-  // Retrieve the current locale set in the URL
+
+  // Get locale from route or infer
   let pathLocale = to.params.locale;
+  const inferredLocale = inferLocale();
 
-  // Make sure path locale is supportedd or else get some sensible defaults
+  // Avoid mutating to.params directly; always redirect if locale is not supported
   if (!isLocaleSupported(pathLocale)) {
-    pathLocale = inferLocale();
-    to.params.locale = pathLocale
+    // Only redirect if not already using the inferred locale
+    if (pathLocale !== inferredLocale) {
+      return {
+        name: to.name,
+        params: { ...to.params, locale: inferredLocale },
+        query: to.query,
+        hash: to.hash,
+        replace: true
+      }
+    }
+    // If still not supported, allow navigation to avoid deadlock
+    setLocale(inferredLocale);
+  } else {
+    setLocale(pathLocale);
   }
-
-  // Changing the language from the URl (either manually or with a link) is possible this way
-  setLocale(pathLocale)
 
   // Save persistent table info
   if (to.params.table || to.params.singleViewTable) {
-    persistentTable.value = to.params.table || to.params.singleViewTable
+    persistentTable.value = to.params.table || to.params.singleViewTable;
   }
 
-  // Need to select language and projects first
-  let goesToDictionarySelection =
-    to.name == "select-dictionary" ||
-    (to.name == "settings" && to.params?.tabId == "dictionary-selection")
+  // Encapsulate logic for checking if a project is selected
+  const requiresProjects = to.meta?.requiresProjectsSelected;
+  const goesToDictionarySelection =
+    to.name === "select-dictionary" ||
+    (to.name === "settings" && to.params?.tabId === "dictionary-selection");
 
-  if (!goesToDictionarySelection && to.meta?.requiresProjectsSelected) {
-    if (!dictionaryStore.filter?.selectedProjects?.length > 0) {
-      // need to select at least one dictionary first
-      return { name: "select-dictionary", params: { locale: pathLocale } }
+  const hasSelectedProjects =
+    Array.isArray(dictionaryStore.filter?.selectedProjects) &&
+    dictionaryStore.filter.selectedProjects.length > 0;
+
+  //*
+  // Redirect to dictionary selection if required and not selected
+  if (requiresProjects && !goesToDictionarySelection && !hasSelectedProjects) {
+    if (to.name !== "select-dictionary") {
+      return { name: "select-dictionary", params: { locale: pathLocale || inferredLocale } }
     }
   }
+  //  */
 
-  //return next();
+  // Always return a value
+  return true;
 });
 
 export default router
