@@ -3,16 +3,14 @@ import {
   ref,
   computed,
   watch,
-  onMounted,
   onUnmounted,
-  getCurrentInstance,
 } from "vue";
 import { useDictionaryStore } from "@/store/DictionaryStore";
 import { useI18n } from "vue-i18n";
 import { i18n } from "@/i18n";
 import { useRoute } from "vue-router";
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const dictionaryStore = useDictionaryStore();
 const route = useRoute();
 
@@ -68,8 +66,14 @@ const filteredProjects = computed(() => {
     return segments.includes(selectedChip.value);
   });
 });
+// Local copy of selected dictionaries
+const localSelected = ref(
+  Array.isArray(dictionaryStore.filter.selectedProjects)
+    ? [...dictionaryStore.filter.selectedProjects]
+    : []
+);
+
 const rows = computed(() => {
-  const selected = dictionaryStore.filter.selectedProjects || [];
   return filteredProjects.value
     .map((p) => {
       const same = p.projectName === p.languageName;
@@ -80,32 +84,13 @@ const rows = computed(() => {
         id: p.projectId,
         placement: p.menuPath,
         dictionaryLabel: dictLabel,
-        selected: selected.includes(p.projectId),
+        selected: localSelected.value.includes(p.projectId),
       };
     })
     .sort((a, b) => a.dictionaryLabel.localeCompare(b.dictionaryLabel));
 });
-function toggleSelection(projectId) {
-  const selected = dictionaryStore.filter.selectedProjects || [];
-  if (selected.includes(projectId)) {
-    dictionaryStore.filter.selectedProjects = selected.filter(
-      (id) => id !== projectId
-    );
-  } else {
-    dictionaryStore.filter.selectedProjects = [...selected, projectId];
-  }
-}
-function itemProps(item) {
-  return item.selected ? { class: "tonal-selected-row" } : {};
-}
-const noSelection = computed(() => !localSelected.value?.length);
 
-// Local copy of selected dictionaries
-const localSelected = ref(
-  Array.isArray(dictionaryStore.filter.selectedProjects)
-    ? [...dictionaryStore.filter.selectedProjects]
-    : []
-);
+const noSelection = computed(() => !localSelected.value?.length);
 
 // Modal dialog state for "select more dictionaries?"
 const showSelectMoreDialog = ref(false);
@@ -167,80 +152,6 @@ onUnmounted(() => {
   dictionaryStore.filter.selectedProjects = merged;
 });
 
-// --- Asset cache management ---
-const checking = dictionaryStore.cache.checking;
-const needsDownloadMB = dictionaryStore.cache.needsDownloadMB;
-const checkAssets = dictionaryStore.cache.checkAssets;
-const queueBeingProcessed = dictionaryStore.cache.queueBeingProcessed;
-const downloadProgress = dictionaryStore.cache.downloadProgress;
-const requiredDownloadSize = dictionaryStore.cache.requiredDownloadSize;
-const currentlyCachedAssets = dictionaryStore.cache.currentlyCachedAssets;
-const processQueue = dictionaryStore.cache.processQueue;
-
-const offlineStripeVisible = ref(false);
-const neededResult = ref(null);
-const offlineReadySnackbar = ref(false);
-
-const selected = computed(() => dictionaryStore.filter.selectedProjects || []);
-watch(
-  () => [...selected.value],
-  async () => {
-    offlineStripeVisible.value = true;
-    neededResult.value = null;
-    if (selected.value.length > 0) {
-      let result;
-      if (typeof checkAssets === "function") {
-        result = await checkAssets();
-      } else if (checkAssets && typeof checkAssets.value === "function") {
-        result = await checkAssets.value();
-      } else {
-        result = null;
-      }
-      neededResult.value = result || { needed: [], neededBytes: 0 };
-      if ((result?.needed?.length ?? 0) === 0) {
-        offlineReadySnackbar.value = true;
-        setTimeout(() => {
-          offlineStripeVisible.value = false;
-        }, 1400);
-      }
-    } else {
-      offlineStripeVisible.value = false;
-      neededResult.value = null;
-    }
-  },
-  { immediate: true }
-);
-
-function startCaching() {
-  dictionaryStore.cache.processQueue = true;
-}
-function stopCaching() {
-  dictionaryStore.cache.processQueue = false;
-}
-function clearCache() {
-  dictionaryStore.clearAssetsCache();
-}
-function onSwDownloadComplete() {
-  offlineReadySnackbar.value = true;
-  setTimeout(() => {
-    offlineStripeVisible.value = false;
-  }, 1200);
-}
-onMounted(() => {
-  window.addEventListener("OFFLINE_DOWNLOAD_COMPLETE", onSwDownloadComplete);
-});
-onUnmounted(() => {
-  window.removeEventListener("OFFLINE_DOWNLOAD_COMPLETE", onSwDownloadComplete);
-});
-const autoOfflineReady = ref(
-  localStorage.getItem("autoOfflineReady") === null
-    ? true
-    : localStorage.getItem("autoOfflineReady") === "true"
-);
-watch(autoOfflineReady, (val) => {
-  localStorage.setItem("autoOfflineReady", val);
-});
-
 // Helper to calculate needed MB for a given projectId
 function getProjectNeedsMB(projectId) {
   const lang = i18n.global.locale.value;
@@ -278,93 +189,7 @@ const chipBgColorForLevel = (level, selected) => {
 </script>
 
 <template>
-  <!-- Offline progress stripe and cache controls -->
-  <div
-    v-if="offlineStripeVisible"
-    class="offline-progress-stripe mb-4 pa-2 d-flex align-center"
-    style="background: var(--v-theme-surface); border-radius: 6px"
-  >
-    <template v-if="checking">
-      <v-progress-circular
-        indeterminate
-        color="primary"
-        size="20"
-        class="mr-3"
-      ></v-progress-circular>
-      <div class="text-body-1">{{ t("offline.checkingHuman") }}</div>
-    </template>
-    <template
-      v-else-if="
-        !checking && neededResult && (neededResult.needed?.length ?? 0) > 0
-      "
-    >
-      <div style="flex: 1">
-        <div class="text-body-1">
-          {{
-            t("offline.makeReady", {
-              count: neededResult.needed.length,
-              mb: Math.ceil(needsDownloadMB),
-            })
-          }}
-        </div>
-      </div>
-      <div
-        v-if="queueBeingProcessed"
-        class="d-flex align-center"
-        style="gap: 12px"
-      >
-        <div style="width: 240px">
-          <v-progress-linear
-            :value="downloadProgress"
-            height="6"
-            color="primary"
-          ></v-progress-linear>
-          <div class="text-caption mt-1">
-            {{ Math.round(downloadProgress) }}%
-          </div>
-        </div>
-        <v-btn small color="secondary" variant="outlined" @click="stopCaching">
-          {{ t("offline.stop") }}
-        </v-btn>
-      </div>
-      <div v-else class="d-flex align-center" style="gap: 12px">
-        <v-btn small color="primary" @click="startCaching">
-          {{
-            t("offline.makeReady", {
-              count: neededResult.needed.length,
-              mb: Math.ceil(needsDownloadMB),
-            })
-          }}
-        </v-btn>
-      </div>
-    </template>
-    <template v-else>
-      <div class="d-flex align-center" style="gap: 12px">
-        <v-icon color="success" class="mr-2">mdi-check-circle</v-icon>
-        <div class="text-body-1">{{ t("offline.ready") }}</div>
-        <v-btn small color="warning" variant="tonal" @click="clearCache">
-          {{ t("offline.clearCache") || "Clear cache" }}
-        </v-btn>
-      </div>
-    </template>
-  </div>
 
-  
-  <v-card class="mt-2 pa-2" elevation="1">
-    <v-card-text class="d-flex align-center" style="gap: 16px;">
-      <v-switch
-        v-model="autoOfflineReady"
-        color="primary"
-        inset
-        hide-details
-        style="min-width: 48px;"
-        :label="t('languageSelectorView.autoOfflineReadyTitle')"
-      />
-      <span class="text-body-2" style="line-height: 1.4;">
-        {{ t("languageSelectorView.autoOfflineReadyDesc") }}
-      </span>
-    </v-card-text>
-  </v-card>
 
   <div v-if="showConfirmSelectionBtn" class="d-flex justify-center mt-2">
     <v-btn color="primary" @click="confirmSelection">
@@ -490,9 +315,6 @@ const chipBgColorForLevel = (level, selected) => {
     </v-card-text>
   </div>
 
-  <v-snackbar v-model="offlineReadySnackbar" color="success" timeout="3000">
-    {{ t("offline.ready") }}
-  </v-snackbar>
 </template>
 
 <style scoped>
@@ -506,9 +328,7 @@ const chipBgColorForLevel = (level, selected) => {
   width: 100%;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
-.chip-selected {
-  /* Vuetify handles selected chip color, but you can add custom style if needed */
-}
+
 .dictionary-card {
   transition: box-shadow 0.2s, background 0.2s;
 }
