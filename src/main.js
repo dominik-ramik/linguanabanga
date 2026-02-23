@@ -23,8 +23,10 @@ registerPlugins(app)
 const messageChannel = new MessageChannel();
 app.config.globalProperties.$messageChannel = messageChannel;
 
-// --- NEW: listen on port1 for SW messages and log / persist state ---
-messageChannel.port1.onmessage = (ev) => {
+// Listen on port1 for SW messages and log / persist state.
+// Use addEventListener (not onmessage) so the composable's listener can coexist.
+messageChannel.port1.start();
+messageChannel.port1.addEventListener('message', (ev) => {
   const msg = ev.data || {};
   const type = msg.type || '(no-type)';
   switch (type) {
@@ -56,7 +58,7 @@ messageChannel.port1.onmessage = (ev) => {
       console.log('[SW]', msg);
       break;
   }
-};
+});
 
 app.use(i18n).mount('#app')
 

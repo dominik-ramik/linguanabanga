@@ -16,6 +16,25 @@ const route = useRoute();
 
 const isSearchRoute = computed(() => route.name === "search");
 
+// --- OFFLINE READINESS ---
+const autoOfflineReady = computed({
+  get: () => dictionaryStore.cache?.autoOfflineReady ?? true,
+  set: (val) => {
+    if (dictionaryStore.cache) {
+      dictionaryStore.cache.autoOfflineReady = val;
+    }
+  },
+});
+const isCaching = computed(
+  () => dictionaryStore.cache?.queueBeingProcessed ?? false
+);
+const downloadProgress = computed(
+  () => dictionaryStore.cache?.downloadProgress ?? 0
+);
+const downloadSizeMB = computed(() =>
+  (dictionaryStore.cache?.requiredDownloadSize ?? 0).toFixed(1)
+);
+
 // --- CHIP FILTER LOGIC ---
 function extractMenuPathSegments(projects) {
   const levels = [];
@@ -293,6 +312,46 @@ const chipBgColorForLevel = (level, selected) => {
           </v-card>
         </v-col>
       </v-row>
+
+      <!-- Offline readiness toggle -->
+      <v-divider class="my-4" />
+      <div class="d-flex flex-column pa-1">
+        <v-switch
+          v-model="autoOfflineReady"
+          :label="t('languageSelectorView.autoOfflineReadyTitle')"
+          color="primary"
+          density="compact"
+          hide-details
+          :disabled="noSelection"
+        />
+        <div class="text-body-2 text-medium-emphasis ml-12 mt-n1 mb-2">
+          {{ t("languageSelectorView.autoOfflineReadyDesc") }}
+        </div>
+
+        <v-alert
+          v-if="!autoOfflineReady && !noSelection"
+          type="warning"
+          variant="tonal"
+          density="compact"
+          class="mt-2"
+        >
+          {{ t("languageSelectorView.autoOfflineReadyWarning") }}
+        </v-alert>
+
+        <div v-if="autoOfflineReady && isCaching" class="mt-3">
+          <v-progress-linear
+            :model-value="downloadProgress"
+            color="primary"
+            height="6"
+            rounded
+            class="offline-progress-stripe"
+          />
+          <div class="text-caption text-medium-emphasis mt-1">
+            {{ downloadSizeMB }} MB {{ t("languageSelectorView.remaining") }}
+          </div>
+        </div>
+      </div>
+
       <!-- Modal dialog for select more dictionaries -->
       <v-dialog v-model="showSelectMoreDialog" max-width="400">
         <v-card>

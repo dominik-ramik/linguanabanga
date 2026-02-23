@@ -24,6 +24,7 @@
     "autoOfflineReadyTitle": "Keep selected dictionaries ready for offline use",
     "autoOfflineReadyDesc": "Text content is always available offline. Enable this to also download images and audio for your selected dictionaries, so you can use them without an internet connection.",
     "autoOfflineReadyWarning": "Images and recordings may not be available offline.",
+    "remaining": "remaining",
     "selectedDictionaries": "Selected dictionaries:",
     "all": "Everywhere",
     "filterByMenuPath": "Show dictionaries from:",

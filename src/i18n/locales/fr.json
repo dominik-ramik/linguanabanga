@@ -24,6 +24,7 @@
     "autoOfflineReadyTitle": "Garder les dictionnaires sélectionnés prêts pour une utilisation hors ligne",
     "autoOfflineReadyDesc": "Le contenu textuel est toujours disponible hors ligne. Activez cette option pour aussi télécharger les images et enregistrements audio de vos dictionnaires sélectionnés, afin de les consulter sans connexion internet.",
     "autoOfflineReadyWarning": "Les images et enregistrements peuvent ne pas être disponibles hors ligne.",
+    "remaining": "restant",
     "selectedDictionaries": "Dictionnaires sélectionnés :",
     "all": "Partout",
     "filterByMenuPath": "Afficher les dictionnaires de :",
