@@ -43,6 +43,9 @@ const downloadProgress = computed(
 const downloadSizeMB = computed(() =>
   (dictionaryStore.cache?.requiredDownloadSize ?? 0).toFixed(1)
 );
+const isStorageFull = computed(
+  () => dictionaryStore.cache?.storageFull ?? false
+);
 
 // --- CHIP FILTER LOGIC ---
 function extractMenuPathSegments(projects) {
@@ -345,6 +348,17 @@ const chipBgColorForLevel = (level, selected) => {
           class="mt-2"
         >
           {{ t("languageSelectorView.autoOfflineReadyWarning") }}
+        </v-alert>
+
+        <v-alert
+          v-if="isStorageFull"
+          type="error"
+          variant="tonal"
+          density="compact"
+          class="mt-2"
+          icon="mdi-harddisk-remove"
+        >
+          {{ t("languageSelectorView.storageFull") }}
         </v-alert>
 
         <div v-if="autoOfflineReady && isCaching && downloadSizeMB > 0" class="mt-3">

@@ -26,6 +26,7 @@
     "autoOfflineReadyWarning": "Obrázky a nahrávky nemusí být offline dostupné.",
     "remaining": "zbývá",
     "preparingOffline": "Příprava pro offline použití",
+    "storageFull": "Úložiště je plné. Uvolněte místo na svém zařízení pro dokončení offline přípravy.",
     "selectedDictionaries": "Vybrané slovníky:",
     "all": "Odevšad",
     "filterByMenuPath": "Zobrazit slovníky z:",

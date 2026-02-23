@@ -8,6 +8,7 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
 
     const currentlyCachedAssets = ref(null)
     const queueBeingProcessed = ref(false)
+    const storageFull = ref(false)
 
     const queue = ref([])
     const queueLengthBeforeProcessed = ref(0)
@@ -171,6 +172,7 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
                 break;
             case "NG_CACHE_INITIATED":
                 queueBeingProcessed.value = true;
+                storageFull.value = false;
                 break;
             case "NG_CACHE_PROGRESS":
                 queueBeingProcessed.value = true; // also set here in case we joined mid-caching after page reload
@@ -191,7 +193,9 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
                 break;
             case "NG_CACHE_STORAGE_FULL":
                 queueBeingProcessed.value = false;
+                storageFull.value = true;
                 console.error("SW reported storage full during caching");
+                getCachedAssets();
                 break;
             case "CACHE_ASSETS_PROGRESS":
                 downloadProgressRaw.value = event.data.progress || 0;
@@ -240,5 +244,6 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
         currentlyCachedAssets,
         requiredDownloadSize,
         queueBeingProcessed,
+        storageFull,
     }
 }

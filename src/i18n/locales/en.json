@@ -26,6 +26,7 @@
     "autoOfflineReadyWarning": "Images and recordings may not be available offline.",
     "remaining": "remaining",
     "preparingOffline": "Preparing for offline use",
+    "storageFull": "Storage is full. Free some space on your device to complete offline preparation.",
     "selectedDictionaries": "Selected dictionaries:",
     "all": "Everywhere",
     "filterByMenuPath": "Show dictionaries from:",

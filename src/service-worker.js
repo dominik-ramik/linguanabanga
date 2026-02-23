@@ -291,6 +291,9 @@ async function startCachingProcess(port) {
     currentCacheAbortController = new AbortController();
     const signal = currentCacheAbortController.signal;
 
+    // Open the cache once for the entire run (avoids repeated caches.open overhead)
+    const activeCache = await caches.open(ACTIVE_ASSETS_CACHE);
+
     cachingTotal = todo.length;
     cachingProcessed = 0;
     postToApp({ type: 'NG_CACHE_PROGRESS', processed: cachingProcessed, total: cachingTotal });
@@ -324,9 +327,8 @@ async function startCachingProcess(port) {
                     err.status = res.status;
                     throw err;
                 }
-                // store into active cache
-                const cache = await caches.open(ACTIVE_ASSETS_CACHE);
-                await cache.put(item.path, res.clone());
+                // store into active cache (reuse handle opened before the loop)
+                await activeCache.put(item.path, res.clone());
                 // remove from todo DB
                 await deleteTodo(item.path);
                 cachingProcessed++;
@@ -336,11 +338,14 @@ async function startCachingProcess(port) {
             try {
                 await Promise.all(fetches);
                 consecutiveFailedBatches = 0;
-                // Verify cache size after each batch
-                const batchVerifyCache = await caches.open(ACTIVE_ASSETS_CACHE);
-                const batchVerifyKeys = await batchVerifyCache.keys();
-                console.log('[SW] batch OK, processed:', cachingProcessed, '/', cachingTotal, ', data-assets size:', batchVerifyKeys.length);
             } catch (err) {
+                // Detect quota exceeded inside batch
+                if (err && (err.name === 'QuotaExceededError' || err.code === 22 || (err.message && err.message.includes('quota')))) {
+                    console.error('[SW] QuotaExceededError in batch', err);
+                    postToApp({ type: 'NG_CACHE_STORAGE_FULL' });
+                    cachingState = 'IDLE';
+                    return;
+                }
                 // classify failures: network / status 404 / quota
                 // For each item in batch: try HEAD to detect 404; if 404 => delete from todo; otherwise keep
                 for (const item of batch) {
@@ -363,11 +368,11 @@ async function startCachingProcess(port) {
                 }
             }
 
-            // progress update every loop (SW will send frequent updates if needed)
+            // progress update every loop
             postToApp({ type: 'NG_CACHE_PROGRESS', processed: cachingProcessed, total: cachingTotal });
 
             // small idle to allow cancellation checks
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 50));
         }
     } catch (e) {
         // handle quota exceeded explicitly
