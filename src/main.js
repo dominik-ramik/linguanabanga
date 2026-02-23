@@ -23,42 +23,41 @@ registerPlugins(app)
 const messageChannel = new MessageChannel();
 app.config.globalProperties.$messageChannel = messageChannel;
 
-// Listen on port1 for SW messages and log / persist state.
-// Use addEventListener (not onmessage) so the composable's listener can coexist.
-messageChannel.port1.start();
-messageChannel.port1.addEventListener('message', (ev) => {
-  const msg = ev.data || {};
-  const type = msg.type || '(no-type)';
-  switch (type) {
-    case 'PORT_READY':
-      console.log('[SW] PORT_READY');
-      break;
-    case 'NG_CACHE_INITIATED':
-      console.log('[SW] NG_CACHE_INITIATED - discovery started');
-      localStorage.setItem('ngCacheState', 'DISCOVERING');
-      break;
-    case 'NG_CACHE_PROGRESS':
-      console.log('[SW] NG_CACHE_PROGRESS', { processed: msg.processed, total: msg.total });
-      localStorage.setItem('ngCacheState', 'CACHING');
-      break;
-    case 'NG_CACHE_COMPLETED':
-      console.log('[SW] NG_CACHE_COMPLETED - queue empty');
-      localStorage.setItem('ngCacheState', 'IDLE');
-      break;
-    case 'NG_CACHE_INCOMPLETE':
-      console.log('[SW] NG_CACHE_INCOMPLETE - queue has items (offline or abandoned)');
-      localStorage.setItem('ngCacheState', 'INCOMPLETE');
-      break;
-    case 'NG_CACHE_STORAGE_FULL':
-      console.error('[SW] NG_CACHE_STORAGE_FULL - storage full while caching');
-      localStorage.setItem('ngCacheState', 'STORAGE_FULL');
-      break;
-    default:
-      // generic logging for other/legacy messages
-      console.log('[SW]', msg);
-      break;
-  }
-});
+// Listen for SW messages via navigator.serviceWorker (Clients API)
+// This works reliably even after page refresh without depending on MessagePort setup timing
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (ev) => {
+    const msg = ev.data || {};
+    const type = msg.type || '(no-type)';
+    switch (type) {
+      case 'PORT_READY':
+        console.log('[SW] PORT_READY');
+        break;
+      case 'NG_CACHE_INITIATED':
+        console.log('[SW] NG_CACHE_INITIATED - discovery started');
+        localStorage.setItem('ngCacheState', 'DISCOVERING');
+        break;
+      case 'NG_CACHE_PROGRESS':
+        console.log('[SW] NG_CACHE_PROGRESS', { processed: msg.processed, total: msg.total });
+        localStorage.setItem('ngCacheState', 'CACHING');
+        break;
+      case 'NG_CACHE_COMPLETED':
+        console.log('[SW] NG_CACHE_COMPLETED - queue empty');
+        localStorage.setItem('ngCacheState', 'IDLE');
+        break;
+      case 'NG_CACHE_INCOMPLETE':
+        console.log('[SW] NG_CACHE_INCOMPLETE - queue has items (offline or abandoned)');
+        localStorage.setItem('ngCacheState', 'INCOMPLETE');
+        break;
+      case 'NG_CACHE_STORAGE_FULL':
+        console.error('[SW] NG_CACHE_STORAGE_FULL - storage full while caching');
+        localStorage.setItem('ngCacheState', 'STORAGE_FULL');
+        break;
+      default:
+        break;
+    }
+  });
+}
 
 app.use(i18n).mount('#app')
 
@@ -71,13 +70,15 @@ if (import.meta.env.PROD) {
                 .then((registration) => {
                     // Open communication channel
                     if (registration.active) {
-                        registration.active.postMessage({ type: 'PORT_INITIALIZATION' }, [
-                            messageChannel.port2,
-                        ]);
+                                console.log('[main] sending PORT_INITIALIZATION to active SW');
+                                registration.active.postMessage({ type: 'PORT_INITIALIZATION' }, [
+                                    messageChannel.port2,
+                                ]);
                     } else if (registration.waiting) {
-                        registration.waiting.postMessage({ type: 'PORT_INITIALIZATION' }, [
-                            messageChannel.port2,
-                        ]);
+                                console.log('[main] sending PORT_INITIALIZATION to waiting SW');
+                                registration.waiting.postMessage({ type: 'PORT_INITIALIZATION' }, [
+                                    messageChannel.port2,
+                                ]);
                     }
                     // try downloading and caching the data file
                     try {
@@ -94,6 +95,7 @@ if (import.meta.env.PROD) {
             try {
                 const reg = await navigator.serviceWorker.ready;
                 if (reg && reg.active) {
+                    console.log('[main] posting NG_NETWORK_ONLINE to SW');
                     reg.active.postMessage({ type: 'NG_NETWORK_ONLINE' });
                 }
             } catch (e) { /* ignore */ }
@@ -102,6 +104,7 @@ if (import.meta.env.PROD) {
             try {
                 const reg = await navigator.serviceWorker.ready;
                 if (reg && reg.active) {
+                    console.log('[main] posting NG_NETWORK_OFFLINE to SW');
                     reg.active.postMessage({ type: 'NG_NETWORK_OFFLINE' });
                 }
             } catch (e) { /* ignore */ }

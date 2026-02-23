@@ -25,6 +25,7 @@
     "autoOfflineReadyDesc": "Textový obsah je vždy dostupný offline. Zapněte tuto volbu, pokud chcete také stáhnout obrázky a zvukové nahrávky pro vybrané slovníky a mít je k dispozici i bez připojení k internetu.",
     "autoOfflineReadyWarning": "Obrázky a nahrávky nemusí být offline dostupné.",
     "remaining": "zbývá",
+    "preparingOffline": "Příprava pro offline použití",
     "selectedDictionaries": "Vybrané slovníky:",
     "all": "Odevšad",
     "filterByMenuPath": "Zobrazit slovníky z:",

@@ -13,6 +13,11 @@ const GOOGLE_APIS_CACHE = "google-apis";
 const VERSION = version;
 console.log("version", VERSION);
 
+// Claim clients immediately so messages work on very first page load
+self.addEventListener('activate', (event) => {
+    event.waitUntil(self.clients.claim());
+});
+
 // Simple SW state machine & control flags
 let cachingState = 'IDLE'; // 'IDLE' | 'DISCOVERING' | 'CACHING' | 'CANCELLING'
 let cancelRequested = false;
@@ -21,8 +26,23 @@ let selectedProjects = [];
 let languageVersion = '';
 let currentPreloadableAssets = [];
 
+// Module-level progress so handlers can report status without cancelling
+let cachingProcessed = 0;
+let cachingTotal = 0;
+
 let communicationPort = null; // for app <-> sw messaging
 let currentCacheAbortController = null;
+let reconcileRunning = false; // re-entrancy guard for reconcile
+
+// Compare two project arrays (order-insensitive)
+function sameProjects(a, b) {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    const sa = [...a].sort();
+    const sb = [...b].sort();
+    return sa.every((v, i) => v === sb[i]);
+}
 
 // Minimal IndexedDB wrapper to store todo assets (paths + metadata)
 const IDB_DB_NAME = 'lingua-cache-db';
@@ -82,16 +102,16 @@ async function clearAllTodo() {
     });
 }
 
-// Helpers to post messages (use communicationPort when available)
-function postToApp(msg, portFallback) {
+// Helpers to post messages — use Clients API for reliability
+// (MessagePort can become stale after page refresh)
+function postToApp(msg) {
     try {
-        if (communicationPort) {
-            communicationPort.postMessage(msg);
-        } else if (portFallback) {
-            portFallback.postMessage(msg);
-        } else {
-            // no-op
-        }
+        try { console.log('[SW] postToApp ->', msg && msg.type ? msg.type : msg, "RAW", msg); } catch (e) { }
+        self.clients.matchAll({ type: 'window' }).then(clients => {
+            for (const client of clients) {
+                try { client.postMessage(msg); } catch (e) { console.error('[SW] postToApp client.postMessage failed', e); }
+            }
+        }).catch((e) => { console.error('[SW] postToApp clients.matchAll failed', e); });
     } catch (e) {
         // ignore
     }
@@ -151,8 +171,15 @@ async function janitorTask(maxAgeDays = 7) {
 // Reconcile: promote/demote & populate todo list (deduped)
 // IMPORTANT: respect msgAutoOfflineReady flag. Discovery runs always, but adding to todo & starting caching only when autoOfflineReady === true
 async function reconcile(preloadableAssets, selProjects, langVer, port, msgAutoOfflineReady = true) {
+    if (reconcileRunning) {
+        console.warn('[SW] reconcile SKIPPED — already running');
+        return;
+    }
+    reconcileRunning = true;
     cachingState = 'DISCOVERING';
-    postToApp({ type: 'NG_CACHE_INITIATED' }, port);
+    console.log('[SW] reconcile START', { projects: selProjects?.length, langVer, autoOfflineReady: msgAutoOfflineReady });
+    postToApp({ type: 'NG_CACHE_INITIATED' });
+  try {
 
     // compute required asset paths for current selection & language
     const requiredSet = new Set();
@@ -169,23 +196,31 @@ async function reconcile(preloadableAssets, selProjects, langVer, port, msgAutoO
     const stale = await caches.open(STALE_ASSETS_CACHE);
     const activeKeys = (await active.keys()).map(k => new URL(k.url).pathname);
     const staleKeys = (await stale.keys()).map(k => new URL(k.url).pathname);
+    console.log('[SW] reconcile initial state: active=' + activeKeys.length + ', stale=' + staleKeys.length + ', requiredSet=' + requiredSet.size);
 
     // Promote from stale -> active if required
+    let promoted = 0;
     for (const path of staleKeys) {
         if (requiredSet.has(path)) {
             await promoteAssetToActive(path);
+            promoted++;
         }
     }
+    console.log('[SW] reconcile promoted from stale -> active:', promoted);
 
     // Demote active->stale if not required
+    let demoted = 0;
     for (const path of activeKeys) {
         if (!requiredSet.has(path)) {
             await demoteAssetToStale(path);
+            demoted++;
         }
     }
+    console.log('[SW] reconcile demoted active -> stale:', demoted);
 
     // Determine required assets not present in active
     const updatedActiveKeys = (await active.keys()).map(k => new URL(k.url).pathname);
+    console.log('[SW] reconcile after promote/demote: active=' + updatedActiveKeys.length);
     const toAdd = [];
     for (const asset of preloadableAssets) {
         if (requiredSet.has(asset.path) && !updatedActiveKeys.includes(asset.path)) {
@@ -199,23 +234,41 @@ async function reconcile(preloadableAssets, selProjects, langVer, port, msgAutoO
         const existingPaths = new Set(existingTodo.map(i => i.path));
         const newTodos = toAdd.filter(a => !existingPaths.has(a.path));
         if (newTodos.length > 0) {
+            console.log('[SW] reconcile adding to todo:', newTodos.length);
             await putTodos(newTodos);
+        } else {
+            console.log('[SW] reconcile no new todo items');
         }
+    } else {
+        console.log('[SW] reconcile autoOfflineReady disabled — skipping todo insertion');
     }
 
     // discovery finished
     cachingState = 'IDLE';
+    console.log('[SW] reconcile DONE', { toAdd: toAdd.length });
 
     // after discovery: run janitor (non-blocking)
     janitorTask().catch(() => { /* ignore */ });
 
     // if network is online and there are todo items, start caching (only if autoOfflineReady is enabled)
     const todoNow = await getAllTodo();
+    console.log('[SW] reconcile todoNow count:', todoNow.length);
     if (msgAutoOfflineReady && networkOnline && todoNow.length > 0) {
-        startCachingProcess(port);
+        await startCachingProcess(port);
+        // Post-caching verification
+        const verifyCache = await caches.open(ACTIVE_ASSETS_CACHE);
+        const verifyKeys = await verifyCache.keys();
+        console.log('[SW] POST-CACHING VERIFICATION: data-assets has', verifyKeys.length, 'entries');
     } else if (todoNow.length > 0 && !networkOnline) {
-        postToApp({ type: 'NG_CACHE_INCOMPLETE' }, port);
+        postToApp({ type: 'NG_CACHE_INCOMPLETE' });
+    } else if (todoNow.length === 0) {
+        // Everything already cached — notify app so UI resets
+        console.log('[SW] reconcile: all required assets already cached');
+        postToApp({ type: 'NG_CACHE_COMPLETED' });
     }
+  } finally {
+    reconcileRunning = false;
+  }
 }
 
 // Start the caching process (processing phase) — reads IndexedDB todo list
@@ -223,7 +276,8 @@ async function startCachingProcess(port) {
     if (cachingState === 'CACHING' || cachingState === 'DISCOVERING') return;
     const todo = await getAllTodo();
     if (!todo || todo.length === 0) {
-        postToApp({ type: 'NG_CACHE_COMPLETED' }, port);
+        console.log('[SW] startCachingProcess: nothing to do');
+        postToApp({ type: 'NG_CACHE_COMPLETED' });
         return;
     }
 
@@ -237,9 +291,9 @@ async function startCachingProcess(port) {
     currentCacheAbortController = new AbortController();
     const signal = currentCacheAbortController.signal;
 
-    const total = todo.length;
-    let processed = 0;
-    postToApp({ type: 'NG_CACHE_PROGRESS', processed, total }, port);
+    cachingTotal = todo.length;
+    cachingProcessed = 0;
+    postToApp({ type: 'NG_CACHE_PROGRESS', processed: cachingProcessed, total: cachingTotal });
 
     const concurrency = 6;
     let consecutiveFailedBatches = 0;
@@ -250,7 +304,8 @@ async function startCachingProcess(port) {
                 // leave remaining todo in IDB and gracefully stop
                 cancelRequested = false;
                 cachingState = 'IDLE';
-                postToApp({ type: 'NG_CACHE_INCOMPLETE' }, port);
+                console.log('[SW] startCachingProcess: cancelled by request');
+                postToApp({ type: 'NG_CACHE_INCOMPLETE' });
                 return;
             }
 
@@ -274,13 +329,17 @@ async function startCachingProcess(port) {
                 await cache.put(item.path, res.clone());
                 // remove from todo DB
                 await deleteTodo(item.path);
-                processed++;
+                cachingProcessed++;
             }));
 
             // execute batch
             try {
                 await Promise.all(fetches);
                 consecutiveFailedBatches = 0;
+                // Verify cache size after each batch
+                const batchVerifyCache = await caches.open(ACTIVE_ASSETS_CACHE);
+                const batchVerifyKeys = await batchVerifyCache.keys();
+                console.log('[SW] batch OK, processed:', cachingProcessed, '/', cachingTotal, ', data-assets size:', batchVerifyKeys.length);
             } catch (err) {
                 // classify failures: network / status 404 / quota
                 // For each item in batch: try HEAD to detect 404; if 404 => delete from todo; otherwise keep
@@ -298,13 +357,14 @@ async function startCachingProcess(port) {
                 if (consecutiveFailedBatches >= 3) {
                     // abandon caching for now
                     cachingState = 'IDLE';
-                    postToApp({ type: 'NG_CACHE_INCOMPLETE' }, port);
+                    console.error('[SW] consecutiveFailedBatches >= 3, abandoning caching');
+                    postToApp({ type: 'NG_CACHE_INCOMPLETE' });
                     return;
                 }
             }
 
             // progress update every loop (SW will send frequent updates if needed)
-            postToApp({ type: 'NG_CACHE_PROGRESS', processed, total }, port);
+            postToApp({ type: 'NG_CACHE_PROGRESS', processed: cachingProcessed, total: cachingTotal });
 
             // small idle to allow cancellation checks
             await new Promise(r => setTimeout(r, 200));
@@ -313,13 +373,15 @@ async function startCachingProcess(port) {
         // handle quota exceeded explicitly
         if (e && (e.name === 'QuotaExceededError' || e.code === 22)) {
             // inform app
-            postToApp({ type: 'NG_CACHE_STORAGE_FULL' }, port);
+            console.error('[SW] QuotaExceededError while caching', e);
+            postToApp({ type: 'NG_CACHE_STORAGE_FULL' });
             cachingState = 'IDLE';
             return;
         }
         // other errors: set state to IDLE and notify incomplete
         cachingState = 'IDLE';
-        postToApp({ type: 'NG_CACHE_INCOMPLETE' }, port);
+        console.error('[SW] startCachingProcess failed', e);
+        postToApp({ type: 'NG_CACHE_INCOMPLETE' });
     } finally {
         // cleanup
         if (currentCacheAbortController) {
@@ -342,47 +404,54 @@ self.addEventListener('message', function (message) {
 
     // Requests for list of cached assets (compat)
     if (msg.type === "GET_CACHED_ASSETS") {
-        // Return all active assets (paths)
-        caches.open(ACTIVE_ASSETS_CACHE).then(async (cache) => {
-            const keys = await cache.keys();
-            const urls = keys.map(k => normalizeURLPathname(location.origin, k.url));
-            postToApp({ type: 'CACHED_ASSETS', assets: urls }, message.ports && message.ports[0]);
-        });
+        message.waitUntil(
+            caches.open(ACTIVE_ASSETS_CACHE).then(async (cache) => {
+                const keys = await cache.keys();
+                const urls = keys.map(k => normalizeURLPathname(location.origin, k.url));
+                console.log('[SW] GET_CACHED_ASSETS: data-assets has', keys.length, 'entries');
+                postToApp({ type: 'CACHED_ASSETS', assets: urls });
+            }).catch(e => console.error('GET_CACHED_ASSETS error', e))
+        );
         return;
     }
 
     // Clear active data assets (compat)
     if (msg.type === "CLEAR_DATA_ASSETS") {
-        caches.delete(ACTIVE_ASSETS_CACHE).then(() => {
-            postToApp({ type: 'DATA_ASSETS_CLEARED' }, message.ports && message.ports[0]);
-        });
+        message.waitUntil(
+            caches.delete(ACTIVE_ASSETS_CACHE).then(() => {
+                postToApp({ type: 'DATA_ASSETS_CLEARED' });
+            }).catch(e => console.error('CLEAR_DATA_ASSETS error', e))
+        );
         return;
     }
 
     // NG_CACHE_ASSETS: run full discovery/reconcile; message may include autoOfflineReady flag
     if (msg.type === 'NG_CACHE_ASSETS') {
-        const port = message.ports && message.ports[0];
         selectedProjects = Array.isArray(msg.selectedProjects) ? msg.selectedProjects.slice() : [];
         languageVersion = msg.languageVersion || '';
         currentPreloadableAssets = Array.isArray(msg.preloadableAssets) ? msg.preloadableAssets : [];
-        const msgAutoOfflineReady = msg.autoOfflineReady !== false; // default true if undefined
+        const msgAutoOfflineReady = msg.autoOfflineReady !== false;
 
-        // Cancel any ongoing caching if necessary
         if (cachingState === 'CACHING' || cachingState === 'DISCOVERING') {
             cancelRequested = true;
             cachingState = 'CANCELLING';
             if (currentCacheAbortController) {
                 try { currentCacheAbortController.abort(); } catch (e) { }
             }
-            (async () => {
-                const start = Date.now();
-                while (cachingState !== 'IDLE' && (Date.now() - start) < 10000) {
-                    await new Promise(r => setTimeout(r, 200));
-                }
-                reconcile(currentPreloadableAssets, selectedProjects, languageVersion, port, msgAutoOfflineReady).catch(()=>{});
-            })();
+            message.waitUntil(
+                (async () => {
+                    const start = Date.now();
+                    while ((cachingState !== 'IDLE' || reconcileRunning) && (Date.now() - start) < 10000) {
+                        await new Promise(r => setTimeout(r, 200));
+                    }
+                    await reconcile(currentPreloadableAssets, selectedProjects, languageVersion, null, msgAutoOfflineReady);
+                })().catch(e => console.error('NG_CACHE_ASSETS reconcile error', e))
+            );
         } else {
-            reconcile(currentPreloadableAssets, selectedProjects, languageVersion, port, msgAutoOfflineReady).catch(()=>{});
+            message.waitUntil(
+                reconcile(currentPreloadableAssets, selectedProjects, languageVersion, null, msgAutoOfflineReady)
+                    .catch(e => console.error('NG_CACHE_ASSETS reconcile error', e))
+            );
         }
         return;
     }
@@ -390,12 +459,14 @@ self.addEventListener('message', function (message) {
     // Network state messages
     if (msg.type === 'NG_NETWORK_ONLINE') {
         networkOnline = true;
-        (async () => {
-            const todo = await getAllTodo();
-            if (cachingState === 'IDLE' && todo.length > 0) {
-                startCachingProcess(message.ports && message.ports[0]);
-            }
-        })();
+        message.waitUntil(
+            (async () => {
+                const todo = await getAllTodo();
+                if (cachingState === 'IDLE' && todo.length > 0) {
+                    await startCachingProcess(null);
+                }
+            })().catch(e => console.error('NG_NETWORK_ONLINE error', e))
+        );
         return;
     } else if (msg.type === 'NG_NETWORK_OFFLINE') {
         networkOnline = false;
@@ -410,26 +481,47 @@ self.addEventListener('message', function (message) {
 
     // Project changes triggered by app
     if (msg.type === 'NG_PROJECTS_CHANGED') {
-        selectedProjects = Array.isArray(msg.selectedProjects) ? msg.selectedProjects.slice() : selectedProjects;
-        languageVersion = msg.languageVersion || languageVersion;
-        currentPreloadableAssets = Array.isArray(msg.preloadableAssets) ? msg.preloadableAssets : currentPreloadableAssets;
+        const incomingProjects = Array.isArray(msg.selectedProjects) ? msg.selectedProjects.slice() : selectedProjects;
+        const incomingLangVer = msg.languageVersion || languageVersion;
+        const incomingAssets = Array.isArray(msg.preloadableAssets) ? msg.preloadableAssets : currentPreloadableAssets;
         const msgAutoOfflineReady = msg.autoOfflineReady !== false;
 
+        const projectsSame = sameProjects(incomingProjects, selectedProjects);
+        const langSame = incomingLangVer === languageVersion;
+
+        // Update stored values
+        selectedProjects = incomingProjects;
+        languageVersion = incomingLangVer;
+        currentPreloadableAssets = incomingAssets;
+
+        // If projects & language haven't changed and caching is already running, just report progress
+        if (projectsSame && langSame && (cachingState === 'CACHING' || cachingState === 'DISCOVERING')) {
+            console.log('[SW] NG_PROJECTS_CHANGED: same projects/lang, caching continues (' + cachingProcessed + '/' + cachingTotal + ')');
+            postToApp({ type: 'NG_CACHE_PROGRESS', processed: cachingProcessed, total: cachingTotal });
+            return;
+        }
+
         if (cachingState === 'CACHING' || cachingState === 'DISCOVERING') {
+            console.log('[SW] NG_PROJECTS_CHANGED: projects/lang changed, cancelling current caching');
             cancelRequested = true;
             cachingState = 'CANCELLING';
             if (currentCacheAbortController) {
                 try { currentCacheAbortController.abort(); } catch (e) { }
             }
-            (async () => {
-                const start = Date.now();
-                while (cachingState !== 'IDLE' && (Date.now() - start) < 10000) {
-                    await new Promise(r => setTimeout(r, 200));
-                }
-                reconcile(currentPreloadableAssets, selectedProjects, languageVersion, message.ports && message.ports[0], msgAutoOfflineReady).catch(()=>{});
-            })();
+            message.waitUntil(
+                (async () => {
+                    const start = Date.now();
+                    while ((cachingState !== 'IDLE' || reconcileRunning) && (Date.now() - start) < 10000) {
+                        await new Promise(r => setTimeout(r, 200));
+                    }
+                    await reconcile(currentPreloadableAssets, selectedProjects, languageVersion, null, msgAutoOfflineReady);
+                })().catch(e => console.error('NG_PROJECTS_CHANGED reconcile error', e))
+            );
         } else {
-            reconcile(currentPreloadableAssets, selectedProjects, languageVersion, message.ports && message.ports[0], msgAutoOfflineReady).catch(()=>{});
+            message.waitUntil(
+                reconcile(currentPreloadableAssets, selectedProjects, languageVersion, null, msgAutoOfflineReady)
+                    .catch(e => console.error('NG_PROJECTS_CHANGED reconcile error', e))
+            );
         }
         return;
     }
@@ -467,14 +559,31 @@ registerRoute(({ url, request, event }) => {
 
 registerRoute(({ url, request, event }) => {
     return url.pathname.startsWith("/data/") && !url.pathname.endsWith("/data.json");
-}, new CacheFirst(
-    {
-        cacheName: DATA_JSON_CACHE, // keep data assets in data cache (non-preloadable) - existing behavior
-        cacheableResponse: {
-            statuses: [200],
-        },
+}, async ({ request }) => {
+    // Check pre-cached data-assets first (offline-ready items)
+    try {
+        const activeCache = await caches.open(ACTIVE_ASSETS_CACHE);
+        const activeResp = await activeCache.match(request);
+        if (activeResp) return activeResp;
+    } catch (e) { /* fall through */ }
+
+    // Then check data-json cache (regular CacheFirst behaviour)
+    try {
+        const jsonCache = await caches.open(DATA_JSON_CACHE);
+        const jsonResp = await jsonCache.match(request);
+        if (jsonResp) return jsonResp;
+
+        // Not in any cache — fetch from network and store in data-json
+        const networkResp = await fetch(request);
+        if (networkResp.ok) {
+            jsonCache.put(request, networkResp.clone());
+        }
+        return networkResp;
+    } catch (e) {
+        // if fetch also fails, return a basic error response
+        return new Response('Network error', { status: 503, statusText: 'Service Unavailable' });
     }
-));
+});
 
 registerRoute('https://fonts.googleapis.com/(.*)',
     new CacheFirst({

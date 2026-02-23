@@ -7,6 +7,7 @@ import SplashScreen from "@/views/SplashScreen.vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAppSettingsStore } from "@/store/AppSettingsStore.js";
 import { inferLocale } from "@/i18n";
+import { useI18n } from "vue-i18n";
 
 import logoLightTheme from "@/assets/logo.svg";
 import logoDarkTheme from "@/assets/logo_dark.svg";
@@ -16,6 +17,7 @@ const logo = computed(() => {
 });
 
 const appSettings = useAppSettingsStore();
+const { t } = useI18n();
 
 //load dictionary data
 const dictionaryStore = useDictionaryStore();
@@ -64,6 +66,9 @@ function toggleSidebar() {
 }
 
 const showSidebar = ref(false);
+
+const isCaching = computed(() => dictionaryStore.cache?.queueBeingProcessed ?? false);
+const cachingProgress = computed(() => Math.round(dictionaryStore.cache?.downloadProgress ?? 0));
 
 const shouldShowPanel = computed({
   get() {
@@ -139,20 +144,34 @@ const shouldShowPanel = computed({
         :specialCharacters="dictionaryStore.dictionary.specialCharacters.all"
         v-if="!mobile && route.name == 'search'"
       ></search-box>
+      <template v-slot:append>
+        <div v-if="isCaching" class="d-flex align-center mr-2" style="gap: 8px">
+          <v-progress-circular
+            :model-value="cachingProgress"
+            :size="32"
+            :width="3"
+            color="surface"
+          ></v-progress-circular>
+          <div class="d-flex flex-column" style="color: rgb(var(--v-theme-surface)); line-height: 1.2">
+            <span class="text-caption font-weight-medium">{{ cachingProgress }}%</span>
+            <span v-if="!mobile" class="text-caption" style="opacity: 0.8">{{ t('languageSelectorView.preparingOffline') }}</span>
+          </div>
+        </div>
 
-      <v-btn
-        v-if="mobile && route.meta.requiresProjectsSelected"
-        icon
-        @click.stop="toggleSidebar()"
-      >
-        <v-badge
-          color="error"
-          :content="dictionaryStore.filter.activeFilters.length"
-          :model-value="dictionaryStore.filter.activeFilters.length > 0"
+        <v-btn
+          v-if="mobile && route.meta.requiresProjectsSelected"
+          icon
+          @click.stop="toggleSidebar()"
         >
-          <v-icon color="surface">mdi-binoculars</v-icon>
-        </v-badge>
-      </v-btn>
+          <v-badge
+            color="error"
+            :content="dictionaryStore.filter.activeFilters.length"
+            :model-value="dictionaryStore.filter.activeFilters.length > 0"
+          >
+            <v-icon color="surface">mdi-binoculars</v-icon>
+          </v-badge>
+        </v-btn>
+      </template>
     </v-app-bar>
 
     <v-navigation-drawer app fixed v-model="showMenu">

@@ -18,10 +18,19 @@ const isSearchRoute = computed(() => route.name === "search");
 
 // --- OFFLINE READINESS ---
 const autoOfflineReady = computed({
-  get: () => dictionaryStore.cache?.autoOfflineReady ?? true,
+    get: () => {
+    try {
+      return dictionaryStore.cache?.autoOfflineReady?.value ?? true;
+    } catch (e) {
+      return true;
+    }
+  },
   set: (val) => {
-    if (dictionaryStore.cache) {
-      dictionaryStore.cache.autoOfflineReady = val;
+    if (dictionaryStore.cache && dictionaryStore.cache.autoOfflineReady) {
+      try {
+        console.log('[UI] autoOfflineReady set ->', val);
+      } catch (e) { /* ignore */ }
+      dictionaryStore.cache.autoOfflineReady.value = val;
     }
   },
 });
@@ -338,7 +347,7 @@ const chipBgColorForLevel = (level, selected) => {
           {{ t("languageSelectorView.autoOfflineReadyWarning") }}
         </v-alert>
 
-        <div v-if="autoOfflineReady && isCaching" class="mt-3">
+        <div v-if="autoOfflineReady && isCaching && downloadSizeMB > 0" class="mt-3">
           <v-progress-linear
             :model-value="downloadProgress"
             color="primary"
