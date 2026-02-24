@@ -83,12 +83,12 @@ function handleGlobalScroll(event) {
 
   // Ignore scrolls that happen INSIDE the filters panel
   let target = event.target;
-  if (target && target.closest && target.closest(".filters-scroll-area")) {
-    return;
-  }
 
-  // If scrolling main page, hide filters to maximize reading area
-  showMobileFilters.value = false;
+  console.log("Scroll detected on", target);
+
+  if (event.target === document) {
+    showMobileFilters.value = false;
+  }
 }
 
 onMounted(() => {
