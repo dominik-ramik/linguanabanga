@@ -82,9 +82,6 @@ function handleGlobalScroll(event) {
   if (!showMobileFilters.value) return;
 
   // Ignore scrolls that happen INSIDE the filters panel
-  let target = event.target;
-
-  console.log("Scroll detected on", target);
 
   if (event.target === document) {
     showMobileFilters.value = false;
@@ -138,7 +135,7 @@ function getActiveFilterLabels(filterKey) {
   if (!Array.isArray(selectedValues) || selectedValues.length === 0) return "";
 
   if (!filterInfo || !filterInfo.items) {
-    return selectedValues.join(", ");
+    return selectedValues;
   }
 
   const titles = selectedValues.map((val) => {
@@ -146,17 +143,66 @@ function getActiveFilterLabels(filterKey) {
     return found ? found.title : val;
   });
 
-  return titles.join(", ");
+  return titles;
 }
 
 function getFilterChipText(filterKey) {
   const currentFilters = unref(dictionaryStore.filter.currentFilters) || [];
   const filterInfo = currentFilters.find((f) => f.name == filterKey);
   const labels = getActiveFilterLabels(filterKey);
+
+  /**
+   * Truncates a string in the middle while maximizing the preserved characters 
+   * based on the provided limit.
+   */
+  const truncateMiddle = (str, limit) => {
+    if (!str || str.length <= limit) return str;
+
+    const ellipsis = "...";
+    // Ensure we don't try to truncate if the limit is too small for an ellipsis
+    if (limit <= ellipsis.length) return str.substring(0, limit);
+
+    // Calculate how many characters we can keep on each side
+    const availableChars = limit - ellipsis.length;
+    const startChars = Math.ceil(availableChars / 2);
+    const endChars = Math.floor(availableChars / 2);
+
+    return str.substring(0, startChars) + ellipsis + str.substring(str.length - endChars);
+  };
+
+  let finalText = "";
+
   if (filterInfo && filterInfo.title) {
-    return labels ? `${filterInfo.title}: ${labels}` : filterInfo.title;
+    if (labels && labels.length > 0) {
+      // Normalize labels into an array, then pass the last '/' segment (trimmed)
+      const labelsArray = Array.isArray(labels)
+        ? labels
+        : String(labels)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+
+      const processedLabels = labelsArray.map((l) => {
+        const lastSeg = String(l).split("/").pop().trim();
+        return truncateMiddle(lastSeg, 15);
+      });
+
+      finalText = `${filterInfo.title}: ${processedLabels.join(", ")}`;
+    } else {
+      finalText = filterInfo.title;
+    }
   }
-  return labels;
+
+  // The entire chip gets up to 50 characters, maximizing readability
+  return truncateMiddle(finalText, 50);
+}
+
+function removeFilterGroup(filter) {
+  const key = filter.name || filter;
+  if (!dictionaryStore.filter.filters) return;
+  if (dictionaryStore.filter.filters[key]) {
+    delete dictionaryStore.filter.filters[key];
+  }
 }
 </script>
 
@@ -349,7 +395,7 @@ function getFilterChipText(filterKey) {
             !showMobileFilters &&
             dictionaryStore.filter.activeFilters.length > 0
           "
-          class="w-100 px-2 pt-2 pb-0 d-flex overflow-x-auto align-center bg-surface"
+          class="w-100 px-2 pt-2 pb-0 d-flex flex-wrap align-center bg-surface"
           style="gap: 8px; white-space: nowrap"
         >
           <v-chip
@@ -359,7 +405,8 @@ function getFilterChipText(filterKey) {
             color="primary"
             variant="tonal"
             closable
-            @click="showMobileFilters = true"
+            @click.stop="removeFilterGroup(filter)"
+            @click:close.stop="removeFilterGroup(filter)"
           >
             {{ getFilterChipText(filter.name || filter) }}
           </v-chip>
