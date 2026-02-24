@@ -117,30 +117,25 @@ function postToApp(msg) {
     }
 }
 
-// Promote asset from stale to active (move entry)
-async function promoteAssetToActive(path) {
-    const staleCache = await caches.open(STALE_ASSETS_CACHE);
-    const activeCache = await caches.open(ACTIVE_ASSETS_CACHE);
+// Move a cached entry between two already-open cache handles.
+// Uses the original Request object as the key to guarantee an exact match on put/delete.
+async function moveCacheEntry(srcCache, dstCache, request) {
     try {
-        const res = await staleCache.match(path);
-        if (res) {
-            await activeCache.put(path, res.clone());
-            await staleCache.delete(path);
+        const res = await srcCache.match(request);
+        if (!res) {
+            console.warn('[SW] moveCacheEntry: no response found for', request.url || request);
+            return false;
         }
-    } catch (e) { /* ignore */ }
-}
-
-// Demote asset from active to stale
-async function demoteAssetToStale(path) {
-    const staleCache = await caches.open(STALE_ASSETS_CACHE);
-    const activeCache = await caches.open(ACTIVE_ASSETS_CACHE);
-    try {
-        const res = await activeCache.match(path);
-        if (res) {
-            await staleCache.put(path, res.clone());
-            await activeCache.delete(path);
+        await dstCache.put(request, res.clone());
+        const deleted = await srcCache.delete(request);
+        if (!deleted) {
+            console.warn('[SW] moveCacheEntry: put succeeded but delete returned false for', request.url || request);
         }
-    } catch (e) { /* ignore */ }
+        return deleted;
+    } catch (e) {
+        console.error('[SW] moveCacheEntry error for', request.url || request, e);
+        return false;
+    }
 }
 
 // Janitor: remove stale assets older than maxAgeDays
@@ -176,8 +171,9 @@ async function reconcile(preloadableAssets, selProjects, langVer, port, msgAutoO
         return;
     }
     reconcileRunning = true;
+    cancelRequested = false; // consume any pending cancel — we are starting fresh
     cachingState = 'DISCOVERING';
-    console.log('[SW] reconcile START', { projects: selProjects?.length, langVer, autoOfflineReady: msgAutoOfflineReady });
+    console.log('[SW] reconcile START', { projects: selProjects?.length, projectIds: selProjects, langVer, autoOfflineReady: msgAutoOfflineReady });
     postToApp({ type: 'NG_CACHE_INITIATED' });
   try {
 
@@ -191,39 +187,51 @@ async function reconcile(preloadableAssets, selProjects, langVer, port, msgAutoO
         }
     });
 
-    // get keys from active and stale
+    // Safety guard: if projects were selected but requiredSet is empty, something is wrong
+    // (e.g. langVer mismatch, stale preloadableAssets). Abort to avoid destructive demotion.
+    if (selProjects.length > 0 && requiredSet.size === 0) {
+        console.error('[SW] reconcile ABORT — requiredSet is EMPTY despite', selProjects.length, 'projects selected. langVer=' + langVer + ', assets=' + preloadableAssets.length + '. Skipping promote/demote to prevent data loss.');
+        cachingState = 'IDLE';
+        return;
+    }
+
+    // get keys from active and stale — keep as Request objects for exact-key moves
     const active = await caches.open(ACTIVE_ASSETS_CACHE);
     const stale = await caches.open(STALE_ASSETS_CACHE);
-    const activeKeys = (await active.keys()).map(k => new URL(k.url).pathname);
-    const staleKeys = (await stale.keys()).map(k => new URL(k.url).pathname);
-    console.log('[SW] reconcile initial state: active=' + activeKeys.length + ', stale=' + staleKeys.length + ', requiredSet=' + requiredSet.size);
+    const activeRequests = await active.keys();
+    const staleRequests = await stale.keys();
+    const activePathnames = activeRequests.map(r => new URL(r.url).pathname);
+    const stalePathnames  = staleRequests.map(r => new URL(r.url).pathname);
+    console.log('[SW] reconcile initial state: active=' + activeRequests.length + ', stale=' + staleRequests.length + ', requiredSet=' + requiredSet.size);
 
-    // Promote from stale -> active if required
+    // Promote from stale -> active if required (use original Request as key)
     let promoted = 0;
-    for (const path of staleKeys) {
-        if (requiredSet.has(path)) {
-            await promoteAssetToActive(path);
+    for (let i = 0; i < staleRequests.length; i++) {
+        if (cancelRequested) { console.log('[SW] reconcile promote interrupted by cancel'); break; }
+        if (requiredSet.has(stalePathnames[i])) {
+            await moveCacheEntry(stale, active, staleRequests[i]);
             promoted++;
         }
     }
     console.log('[SW] reconcile promoted from stale -> active:', promoted);
 
-    // Demote active->stale if not required
+    // Demote active->stale if not required (use original Request as key)
     let demoted = 0;
-    for (const path of activeKeys) {
-        if (!requiredSet.has(path)) {
-            await demoteAssetToStale(path);
+    for (let i = 0; i < activeRequests.length; i++) {
+        if (cancelRequested) { console.log('[SW] reconcile demote interrupted by cancel'); break; }
+        if (!requiredSet.has(activePathnames[i])) {
+            await moveCacheEntry(active, stale, activeRequests[i]);
             demoted++;
         }
     }
     console.log('[SW] reconcile demoted active -> stale:', demoted);
 
-    // Determine required assets not present in active
-    const updatedActiveKeys = (await active.keys()).map(k => new URL(k.url).pathname);
-    console.log('[SW] reconcile after promote/demote: active=' + updatedActiveKeys.length);
+    // Determine required assets not present in active (re-read after moves)
+    const updatedActivePathnames = (await active.keys()).map(r => new URL(r.url).pathname);
+    console.log('[SW] reconcile after promote/demote: active=' + updatedActivePathnames.length);
     const toAdd = [];
     for (const asset of preloadableAssets) {
-        if (requiredSet.has(asset.path) && !updatedActiveKeys.includes(asset.path)) {
+        if (requiredSet.has(asset.path) && !updatedActivePathnames.includes(asset.path)) {
             toAdd.push({ path: asset.path, size: asset.size || 0, refs: asset.refs || {} });
         }
     }
@@ -282,7 +290,7 @@ async function startCachingProcess(port) {
     }
 
     cachingState = 'CACHING';
-    cancelRequested = false;
+    cancelRequested = false; // clear any stale flag from previous cancellation
 
     // create abort controller for fetches
     if (currentCacheAbortController) {
@@ -491,6 +499,8 @@ self.addEventListener('message', function (message) {
         const incomingAssets = Array.isArray(msg.preloadableAssets) ? msg.preloadableAssets : currentPreloadableAssets;
         const msgAutoOfflineReady = msg.autoOfflineReady !== false;
 
+        console.log('[SW] NG_PROJECTS_CHANGED received', { incoming: incomingProjects, stored: selectedProjects, cachingState, reconcileRunning });
+
         const projectsSame = sameProjects(incomingProjects, selectedProjects);
         const langSame = incomingLangVer === languageVersion;
 
@@ -499,10 +509,14 @@ self.addEventListener('message', function (message) {
         languageVersion = incomingLangVer;
         currentPreloadableAssets = incomingAssets;
 
-        // If projects & language haven't changed and caching is already running, just report progress
-        if (projectsSame && langSame && (cachingState === 'CACHING' || cachingState === 'DISCOVERING')) {
-            console.log('[SW] NG_PROJECTS_CHANGED: same projects/lang, caching continues (' + cachingProcessed + '/' + cachingTotal + ')');
-            postToApp({ type: 'NG_CACHE_PROGRESS', processed: cachingProcessed, total: cachingTotal });
+        // If projects & language haven't changed, skip unnecessary work
+        if (projectsSame && langSame) {
+            if (cachingState === 'CACHING' || cachingState === 'DISCOVERING') {
+                console.log('[SW] NG_PROJECTS_CHANGED: same projects/lang, caching continues (' + cachingProcessed + '/' + cachingTotal + ')');
+                postToApp({ type: 'NG_CACHE_PROGRESS', processed: cachingProcessed, total: cachingTotal });
+            } else {
+                console.log('[SW] NG_PROJECTS_CHANGED: same projects/lang and IDLE, skipping redundant reconcile');
+            }
             return;
         }
 

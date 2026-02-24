@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, unref } from "vue";
 import { RouterView } from "vue-router";
 import { useDisplay } from "vuetify";
 import { useDictionaryStore } from "@/store/DictionaryStore.js";
@@ -67,8 +67,8 @@ function toggleSidebar() {
 
 const showSidebar = ref(false);
 
-const isCaching = computed(() => dictionaryStore.cache?.queueBeingProcessed ?? false);
-const cachingProgress = computed(() => Math.round(dictionaryStore.cache?.downloadProgress ?? 0));
+const isCaching = computed(() => !!unref(dictionaryStore.cache?.queueBeingProcessed));
+const cachingProgress = computed(() => Math.round(unref(dictionaryStore.cache?.downloadProgress) || 0));
 
 const shouldShowPanel = computed({
   get() {

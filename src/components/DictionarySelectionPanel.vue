@@ -174,13 +174,16 @@ watch(
   { deep: true }
 );
 
-// beforeUnmount: merge any outstanding differences into the store
+// beforeUnmount: sync local selection to the store (overwrite, not union merge)
+// The old union merge could re-add projects the user had deselected on the search route.
 onUnmounted(() => {
-  const storeSet = new Set(dictionaryStore.filter.selectedProjects || []);
-  const localSet = new Set(localSelected.value || []);
-  // Merge: union of both sets
-  const merged = Array.from(new Set([...storeSet, ...localSet]));
-  dictionaryStore.filter.selectedProjects = merged;
+  // On the search route, only commit if user explicitly confirmed.
+  // On other routes, localSelected was already synced via the deep watcher,
+  // so this is a no-op safety net.
+  if (!isSearchRoute.value) {
+    dictionaryStore.filter.selectedProjects = [...localSelected.value];
+  }
+  // On search route: do nothing — store should only be updated via confirmSelection()
 });
 
 // Helper to calculate needed MB for a given projectId
