@@ -49,35 +49,24 @@ function updateEnableStates() {
 }
 
 const availableItems = computed(() => {
-  let filteredItems = props.items;
+  // Map over all props.items without removing them from the array.
+  // This ensures Vuetify ALWAYS has the item.title mapping for selected chips.
+  return props.items.map((item) => {
+    const isEnabled = Object.keys(enableStates.value).includes(item.value);
+    
+    const matchesQuickFilter = 
+      !quickFilter.value || 
+      item.title.toLocaleLowerCase().includes(quickFilter.value.toLocaleLowerCase());
 
-  filteredItems = filteredItems.filter((item) => {
-    if (item.title == "") {
-      return false;
-    }
+    // Determine if the item should be hidden from the dropdown list
+    const isHidden = item.title === "" || !matchesQuickFilter || !isEnabled;
 
-    if (
-      (quickFilter.value &&
-        !item.title
-          .toLocaleLowerCase()
-          .includes(quickFilter.value?.toLocaleLowerCase())) ||
-      !Object.keys(enableStates.value).includes(item.value)
-    ) {
-      return false;
-    } else {
-      return true;
-    }
-  });
-
-  return filteredItems.map((item) => {
     return {
       value: item.value,
       title: item.title,
-      disabled: !Object.keys(enableStates.value).includes(item.value),
-      count: Object.keys(enableStates.value).includes(item.value)
-        ? enableStates.value[item.value]
-        : "",
-      hidden: false,
+      disabled: !isEnabled,
+      count: isEnabled ? enableStates.value[item.value] : "",
+      hidden: isHidden, // Use the hidden property instead of filtering the array
     };
   });
 });
