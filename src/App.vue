@@ -187,14 +187,14 @@ function getFilterChipText(filterKey) {
         return truncateMiddle(lastSeg, 15);
       });
 
-      finalText = `${filterInfo.title}: ${processedLabels.join(", ")}`;
+      finalText = `${filterInfo.title}: ${truncateMiddle(processedLabels.join(", "), 50)}`;
     } else {
       finalText = filterInfo.title;
     }
   }
 
   // The entire chip gets up to 50 characters, maximizing readability
-  return truncateMiddle(finalText, 50);
+  return finalText;
 }
 
 function removeFilterGroup(filter) {
