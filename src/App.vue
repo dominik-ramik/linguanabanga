@@ -429,8 +429,7 @@ function removeFilterGroup(filter) {
       v-model="shouldShowPanel"
       v-bind:width="450"
       app
-      fixed
-      :location="mobile ? 'right' : 'right'"
+      location="end"
       class="pa-2"
     >
       <ActionsPanel :type="route.name" />
