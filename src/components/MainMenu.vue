@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { useDictionaryStore } from "@/store/DictionaryStore";
 import { useRouter, useRoute } from "vue-router";
 import { serializeFilter } from "@/composables/useDictionaryFilter.js";
+import { version } from "../../package.json";
 
 const dictionaryStore = useDictionaryStore();
 const router = useRouter();
@@ -110,7 +111,7 @@ const selectedProjects = computed(() => {
   </v-list>
   <v-divider></v-divider>
   <div class="ma-2 text-caption">
-    Powered by <span class="font-weight-bold" style="cursor: pointer;" onClick="window.open('https://github.com/dominik-ramik/lingua-nabanga', '_blank')">{{ $t('appName') }}</span>
+    Powered by <span class="font-weight-bold" style="cursor: pointer;" onClick="window.open('https://github.com/dominik-ramik/lingua-nabanga', '_blank')">{{ $t('appName') }}</span> v{{ version }}
   </div>
   <div class="ma-2 text-caption" v-if="dictionaryStore.filter.selectedProjects?.length > 0">
     <div class="font-weight-bold">Open projects</div>

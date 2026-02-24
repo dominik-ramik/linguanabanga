@@ -342,62 +342,62 @@ const chipBgColorForLevel = (level, selected) => {
                 class="mr-1"
                 style="pointer-events: none"
               >
-                {{ getProjectNeedsMB(item.id) }} MB, {{ formatNumberWithSpaces(getProjectEntriesCount(item.id)) }} {{ t('languageSelectorView.entries') }}
+                {{ formatNumberWithSpaces(getProjectEntriesCount(item.id)) }} {{ t('languageSelectorView.entries') }}, {{ getProjectNeedsMB(item.id) }} MB
               </v-chip>
             </div>
           </v-card>
         </v-col>
       </v-row>
 
-      <!-- Offline readiness toggle -->
-      <v-divider class="my-4" />
-      <div class="d-flex flex-column pa-1">
-        <v-switch
-          v-model="autoOfflineReady"
-          :label="t('languageSelectorView.autoOfflineReadyTitle')"
-          color="primary"
-          density="compact"
-          hide-details
-          :disabled="noSelection"
-        />
-        <div class="text-body-2 text-medium-emphasis ml-12 mt-n1 mb-2">
-          {{ t("languageSelectorView.autoOfflineReadyDesc") }}
-        </div>
-
-        <v-alert
-          v-if="!autoOfflineReady && !noSelection"
-          type="warning"
-          variant="tonal"
-          density="compact"
-          class="mt-2"
-        >
-          {{ t("languageSelectorView.autoOfflineReadyWarning") }}
-        </v-alert>
-
-        <v-alert
-          v-if="isStorageFull"
-          type="error"
-          variant="tonal"
-          density="compact"
-          class="mt-2"
-          icon="mdi-harddisk-remove"
-        >
-          {{ t("languageSelectorView.storageFull") }}
-        </v-alert>
-
-        <div v-if="autoOfflineReady && isCaching && downloadSizeMB > 0" class="mt-3">
-          <v-progress-linear
-            :model-value="downloadProgress"
+      <!-- Offline readiness -->
+      <v-card class="pa-3 pt-0 pb-0 mt-4">
+        <v-card-text>
+          <v-switch
+            v-model="autoOfflineReady"
+            :label="t('languageSelectorView.autoOfflineReadyTitle')"
             color="primary"
-            height="6"
-            rounded
-            class="offline-progress-stripe"
+            hide-details
+            :disabled="noSelection"            
           />
-          <div class="text-caption text-medium-emphasis mt-1">
-            {{ downloadSizeMB }} MB {{ t("languageSelectorView.remaining") }}
+          <div class="text-body-2 text-medium-emphasis ml-12 mt-n1 mb-2">
+            {{ t("languageSelectorView.autoOfflineReadyDesc") }}
           </div>
-        </div>
-      </div>
+
+          <v-alert
+            v-if="!autoOfflineReady && !noSelection"
+            type="warning"
+            variant="tonal"
+            density="compact"
+            class="mt-2"
+          >
+            {{ t("languageSelectorView.autoOfflineReadyWarning") }}
+          </v-alert>
+
+          <v-alert
+            v-if="isStorageFull"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="mt-2"
+            icon="mdi-harddisk-remove"
+          >
+            {{ t("languageSelectorView.storageFull") }}
+          </v-alert>
+
+          <div v-if="autoOfflineReady && isCaching && downloadSizeMB > 0" class="mt-3">
+            <v-progress-linear
+              :model-value="downloadProgress"
+              color="primary"
+              height="6"
+              rounded
+              class="offline-progress-stripe"
+            />
+            <div class="text-caption text-medium-emphasis mt-1">
+              {{ downloadSizeMB }} MB {{ t("languageSelectorView.remaining") }}
+            </div>
+          </div>
+        </v-card-text>
+      </v-card>
 
       <!-- Modal dialog for select more dictionaries -->
       <v-dialog v-model="showSelectMoreDialog" max-width="400">
