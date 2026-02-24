@@ -44,4 +44,9 @@
     "selectHint": "Select one or several dictionaries you want to search through",
     "close": "Close"
   }
+  ,
+  "ui": {
+    "clearAll": "Clear all",
+    "applyAndClose": "Apply & Close"
+  }
 }

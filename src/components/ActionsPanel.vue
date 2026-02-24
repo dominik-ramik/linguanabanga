@@ -2,8 +2,11 @@
 import { ref, computed } from "vue";
 import { useDictionaryStore } from "@/store/DictionaryStore";
 import { micromark } from "micromark";
+import { useDisplay } from "vuetify";
 
 const props = defineProps(["type"]);
+
+const { mobile } = useDisplay();
 
 const dictionaryStore = useDictionaryStore();
 
@@ -24,14 +27,20 @@ const fuzzinessLevelExplanation = computed(() => {
       return {
         explanation:
           "Text search will show only results containing text that matches exactly the query (case and accents are ignored).",
-          tip: "Useful when searching for an exact term or with languages with standardized orthography.",
+        tip: "Useful when searching for an exact term or with languages with standardized orthography.",
         query: "color",
         results: [
           { name: "RED **COLOR**", match: true },
           { name: "**Colór** de tierra", match: true },
           { name: "red **colour**", match: false },
-          { name: "**culur** is a spelling variant in Middle English", match: false },
-          { name: "'hacer **callar**' has nothing to do with color", match: false },
+          {
+            name: "**culur** is a spelling variant in Middle English",
+            match: false,
+          },
+          {
+            name: "'hacer **callar**' has nothing to do with color",
+            match: false,
+          },
         ],
       };
     case "strict":
@@ -44,8 +53,14 @@ const fuzzinessLevelExplanation = computed(() => {
           { name: "RED **COLOR**", match: true },
           { name: "**Colór** de tierra", match: true },
           { name: "red **colour**", match: true },
-          { name: "**culur** is a spelling variant in Middle English", match: false },
-          { name: "'hacer **callar**' has nothing to do with color", match: false },
+          {
+            name: "**culur** is a spelling variant in Middle English",
+            match: false,
+          },
+          {
+            name: "'hacer **callar**' has nothing to do with color",
+            match: false,
+          },
         ],
       };
     case "liberal":
@@ -58,8 +73,14 @@ const fuzzinessLevelExplanation = computed(() => {
           { name: "RED **COLOR**", match: true },
           { name: "**Colór** de tierra", match: true },
           { name: "red **colour**", match: true },
-          { name: "**culur** is a spelling variant in Middle English", match: true },
-          { name: "'hacer **callar**' has nothing to do with color", match: true },
+          {
+            name: "**culur** is a spelling variant in Middle English",
+            match: true,
+          },
+          {
+            name: "'hacer **callar**' has nothing to do with color",
+            match: true,
+          },
         ],
       };
     default:
@@ -70,7 +91,7 @@ const fuzzinessLevelExplanation = computed(() => {
 </script>
 
 <template>
-  <template v-if="props.type == 'search'">
+  <template v-if="props.type == 'search' && !mobile">
     <DictionaryFilter
       v-for="filterInfo in dictionaryStore.filter.currentFilters"
       v-bind:key="filterInfo.name"
@@ -79,14 +100,14 @@ const fuzzinessLevelExplanation = computed(() => {
       :items="filterInfo.items"
       :filterInfo="filterInfo"
     ></DictionaryFilter>
-    <div v-if="dictionaryStore.filter.activeFilters.length > 0" class="ma-0">
+      <div v-if="dictionaryStore.filter.activeFilters.length > 0" class="ma-0">
       <v-btn
         @click="dictionaryStore.setFilters()"
         variant="elevated"
         class="mb-3"
         color="primary"
         block
-        >Clear all filters</v-btn
+        >{{ $t("ui.clearAll") }}</v-btn
       >
     </div>
   </template>

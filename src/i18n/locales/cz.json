@@ -37,4 +37,9 @@
     "confirmSelection": "Potvrdit výběr slovníků",
     "entries": "záznamů"
   }
+  ,
+  "ui": {
+    "clearAll": "Vymazat vše",
+    "applyAndClose": "Použít a zavřít"
+  }
 }

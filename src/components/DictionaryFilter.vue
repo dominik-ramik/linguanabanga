@@ -112,7 +112,7 @@ function selectAll() {
     item-disabled="disabled"
     clearable
     multiple
-    class="mt-2 mb-0"
+    class="mt-0 mb-0"
     variant="solo"
     @update:menu="
       quickFilter = '';

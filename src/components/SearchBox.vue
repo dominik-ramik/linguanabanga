@@ -6,12 +6,15 @@ import { useDisplay } from "vuetify";
 const dictionaryStore = useDictionaryStore();
 
 const { mobile } = useDisplay();
-const props = defineProps([
+const passedProps = defineProps([
   "filterObject",
   "specialCharacters",
   "filtersPanelReference",
   "actionPanelModel",
 ]);
+
+// ADDED "input-focus" to the emits
+const emit = defineEmits(["toggle-filters", "input-focus"]);
 
 const fulltextSearch = ref(null);
 
@@ -31,7 +34,7 @@ function appendSpecialCharacter(char) {
     fulltextSearch.value.focus();
     fulltextSearch.value.setSelectionRange(
       cursorPosition + 1,
-      cursorPosition + 1
+      cursorPosition + 1,
     );
   }, 200);
 }
@@ -49,14 +52,14 @@ watch(
       dictionaryStore.filter.text = debounceText.value;
     }, 500);
   },
-  { deep: true }
+  { deep: true },
 );
 
 watch(
   () => dictionaryStore.filter.text,
   (newValue) => {
     debounceText.value = newValue;
-  }
+  },
 );
 </script>
 
@@ -75,30 +78,55 @@ watch(
     clearable
     style="max-width: 630px"
     clear-icon="mdi-close-circle"
+    @focus="emit('input-focus')" 
   >
     <template v-slot:append-inner>
-      <v-menu v-if="props.specialCharacters">
-        <template v-slot:activator="{ props }">
-          <v-btn icon v-bind="props" :density="mobile ? 'compact' : 'default'">
-            <v-icon color="primary">mdi-keyboard</v-icon>
-          </v-btn>
-        </template>
-        <v-card variant="elevated" style="max-width: 470px">
-          <template v-slot:text>
-            <div class="d-flex flex-wrap justify-center">
-              <v-btn
-                v-for="char in props.specialCharacters"
-                v-bind:key="char"
-                class="ma-1"
-                variant="tonal"
-                color="primary"
-                @click="appendSpecialCharacter(char)"
-                >{{ char }}</v-btn
-              >
-            </div>
+      <div class="d-flex align-center">
+        <v-menu v-if="passedProps.specialCharacters">
+          <template v-slot:activator="{ props }">
+            <v-btn
+              icon
+              variant="text"
+              v-bind="props"
+              :density="mobile ? 'compact' : 'default'"
+            >
+              <v-icon color="primary">mdi-keyboard</v-icon>
+            </v-btn>
           </template>
-        </v-card>
-      </v-menu>
+          <v-card variant="elevated" style="max-width: 470px">
+            <template v-slot:text>
+              <div class="d-flex flex-wrap justify-center">
+                <v-btn
+                  v-for="char in passedProps.specialCharacters"
+                  v-bind:key="char"
+                  class="ma-1"
+                  variant="tonal"
+                  color="primary"
+                  @click.stop="appendSpecialCharacter(char)"
+                  >{{ char }}</v-btn
+                >
+              </div>
+            </template>
+          </v-card>
+        </v-menu>
+
+        <v-btn
+          v-if="mobile"
+          icon
+          variant="text"
+          :density="mobile ? 'compact' : 'default'"
+          @click.prevent.stop="emit('toggle-filters', $event)"
+          class="ml-4"
+        >
+          <v-badge
+            color="error"
+            :content="dictionaryStore.filter.activeFilters.length"
+            :model-value="dictionaryStore.filter.activeFilters.length > 0"
+          >
+            <v-icon color="primary">mdi-binoculars</v-icon>
+          </v-badge>
+        </v-btn>
+      </div>
     </template>
   </v-text-field>
 </template>

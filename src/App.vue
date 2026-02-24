@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, unref } from "vue";
+import { ref, computed, watch, unref, onMounted, onUnmounted } from "vue";
 import { RouterView } from "vue-router";
 import { useDisplay } from "vuetify";
 import { useDictionaryStore } from "@/store/DictionaryStore.js";
@@ -8,6 +8,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useAppSettingsStore } from "@/store/AppSettingsStore.js";
 import { inferLocale } from "@/i18n";
 import { useI18n } from "vue-i18n";
+import DictionaryFilter from "@/components/DictionaryFilter.vue";
 
 import logoLightTheme from "@/assets/logo.svg";
 import logoDarkTheme from "@/assets/logo_dark.svg";
@@ -28,9 +29,12 @@ watch(
   () => dictionaryStore.loadFailed,
   (failed) => {
     if (failed) {
-      router.push({ name: 'settings', params: { locale: inferLocale(), tabId: 'data-management' } });
+      router.push({
+        name: "settings",
+        params: { locale: inferLocale(), tabId: "data-management" },
+      });
     }
-  }
+  },
 );
 
 const { mobile } = useDisplay();
@@ -65,10 +69,53 @@ function toggleSidebar() {
   }
 }
 
+const showMobileFilters = ref(true);
 const showSidebar = ref(false);
 
-const isCaching = computed(() => !!unref(dictionaryStore.cache?.queueBeingProcessed));
-const cachingProgress = computed(() => Math.round(unref(dictionaryStore.cache?.downloadProgress) || 0));
+function toggleMobileFilters(event) {
+  showMobileFilters.value = !showMobileFilters.value;
+}
+
+// --- NEW MOBILE BEHAVIOR LOGIC ---
+
+function handleGlobalScroll(event) {
+  if (!showMobileFilters.value) return;
+
+  // Ignore scrolls that happen INSIDE the filters panel
+  let target = event.target;
+  if (target && target.closest && target.closest(".filters-scroll-area")) {
+    return;
+  }
+
+  // If scrolling main page, hide filters to maximize reading area
+  showMobileFilters.value = false;
+}
+
+onMounted(() => {
+  // 1. Initial Discovery: Open filters by default if there's no text query and no active filters yet.
+  if (
+    !dictionaryStore.filter.text &&
+    dictionaryStore.filter.activeFilters.length === 0
+  ) {
+    showMobileFilters.value = true;
+  }
+
+  // 2. Scroll Awareness: Listen to scroll on capture phase to catch all scrolling elements
+  window.addEventListener("scroll", handleGlobalScroll, true);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("scroll", handleGlobalScroll, true);
+});
+
+// ---------------------------------
+
+const isCaching = computed(
+  () => !!unref(dictionaryStore.cache?.queueBeingProcessed),
+);
+const cachingProgress = computed(() =>
+  Math.round(unref(dictionaryStore.cache?.downloadProgress) || 0),
+);
 
 const shouldShowPanel = computed({
   get() {
@@ -82,11 +129,43 @@ const shouldShowPanel = computed({
     showSidebar.value = newValue;
   },
 });
+
+function getActiveFilterLabels(filterKey) {
+  const currentFilters = unref(dictionaryStore.filter.currentFilters) || [];
+  const filterInfo = currentFilters.find((f) => f.name == filterKey);
+  const selectedValues = unref(dictionaryStore.filter.filters)[filterKey] || [];
+
+  if (!Array.isArray(selectedValues) || selectedValues.length === 0) return "";
+
+  if (!filterInfo || !filterInfo.items) {
+    return selectedValues.join(", ");
+  }
+
+  const titles = selectedValues.map((val) => {
+    const found = filterInfo.items.find((it) => it.value == val);
+    return found ? found.title : val;
+  });
+
+  return titles.join(", ");
+}
+
+function getFilterChipText(filterKey) {
+  const currentFilters = unref(dictionaryStore.filter.currentFilters) || [];
+  const filterInfo = currentFilters.find((f) => f.name == filterKey);
+  const labels = getActiveFilterLabels(filterKey);
+  if (filterInfo && filterInfo.title) {
+    return labels ? `${filterInfo.title}: ${labels}` : filterInfo.title;
+  }
+  return labels;
+}
 </script>
 
 <template>
   <v-app
-    v-if="(!dictionaryStore.dictionary.isReady && !dictionaryStore.loadFailed) || loadingDelay < maxTimeout"
+    v-if="
+      (!dictionaryStore.dictionary.isReady && !dictionaryStore.loadFailed) ||
+      loadingDelay < maxTimeout
+    "
   >
     <SplashScreen v-if="true" />
     <!-- TODO remove in production -->
@@ -152,9 +231,16 @@ const shouldShowPanel = computed({
             :width="3"
             color="surface"
           ></v-progress-circular>
-          <div class="d-flex flex-column" style="color: rgb(var(--v-theme-surface)); line-height: 1.2">
-            <span class="text-caption font-weight-medium">{{ cachingProgress }}%</span>
-            <span v-if="!mobile" class="text-caption" style="opacity: 0.8">{{ t('languageSelectorView.preparingOffline') }}</span>
+          <div
+            class="d-flex flex-column"
+            style="color: rgb(var(--v-theme-surface)); line-height: 1.2"
+          >
+            <span class="text-caption font-weight-medium"
+              >{{ cachingProgress }}%</span
+            >
+            <span v-if="!mobile" class="text-caption" style="opacity: 0.8">{{
+              t("languageSelectorView.preparingOffline")
+            }}</span>
           </div>
         </div>
 
@@ -163,13 +249,7 @@ const shouldShowPanel = computed({
           icon
           @click.stop="toggleSidebar()"
         >
-          <v-badge
-            color="error"
-            :content="dictionaryStore.filter.activeFilters.length"
-            :model-value="dictionaryStore.filter.activeFilters.length > 0"
-          >
-            <v-icon color="surface">mdi-binoculars</v-icon>
-          </v-badge>
+          <v-icon color="surface">mdi-dots-vertical</v-icon>
         </v-btn>
       </template>
     </v-app-bar>
@@ -187,12 +267,116 @@ const shouldShowPanel = computed({
         <router-view></router-view>
       </v-main>
     </div>
-    <v-bottom-navigation v-if="mobile && route.name == 'search'">
-      <search-box
-        :filterObject="dictionaryStore.filter.text"
-        :specialCharacters="dictionaryStore.dictionary.specialCharacters.all"
-      ></search-box>
-    </v-bottom-navigation>
+
+    <v-footer
+      app
+      v-if="mobile && route.name == 'search'"
+      class="bg-surface d-flex flex-column pa-0"
+      style="height: auto !important; z-index: 1004"
+      elevation="8"
+    >
+      <div
+        style="
+          height: auto !important;
+          display: flex !important;
+          flex-direction: column !important;
+          flex-wrap: nowrap !important;
+          width: 100% !important;
+        "
+      >
+        <v-expand-transition>
+          <div
+            v-if="showMobileFilters"
+            class="bg-surface d-flex flex-column elevation-8"
+            style="
+              max-height: 45vh;
+              width: 100% !important;
+              border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+            "
+          >
+            <div
+              class="pa-2 pb-10 pt-0 overflow-y-auto flex-grow-1 filters-scroll-area"
+            >
+              <div class="d-flex flex-column mt-4">
+                <DictionaryFilter
+                  v-for="filterInfo in dictionaryStore.filter.currentFilters"
+                  v-bind:key="filterInfo.name"
+                  v-model="dictionaryStore.filter.filters[filterInfo.name]"
+                  :title="filterInfo.title"
+                  :items="filterInfo.items"
+                  :filterInfo="filterInfo"
+                ></DictionaryFilter>
+              </div>
+
+              <div
+                class="pt-2 pl-2 pr-2 pb-2 d-flex mb-2 mt-4"
+                style="
+                  gap: 12px;
+                  position: fixed;
+                  bottom: 50px;
+                  right: 0px;
+                  left: 0px;
+                  z-index: 10000 !important;
+                "
+                v-if="dictionaryStore.filter.activeFilters.length > 0"
+              >
+                <v-btn
+                  @click="showMobileFilters = false"
+                  variant="elevated"
+                  color="primary"
+                  class="flex-grow-1"
+                >
+                  {{ t("ui.applyAndClose") }}
+                </v-btn>
+                <v-btn
+                  @click="
+                    dictionaryStore.setFilters();
+                    showMobileFilters = false;
+                  "
+                  variant="elevated"
+                  color="error"
+                  class="flex-grow-1"
+                >
+                  {{ t("ui.clearAll") }}
+                </v-btn>
+              </div>
+            </div>
+          </div>
+        </v-expand-transition>
+
+        <div
+          v-if="
+            !showMobileFilters &&
+            dictionaryStore.filter.activeFilters.length > 0
+          "
+          class="w-100 px-2 pt-2 pb-0 d-flex overflow-x-auto align-center bg-surface"
+          style="gap: 8px; white-space: nowrap"
+        >
+          <v-chip
+            v-for="filter in dictionaryStore.filter.activeFilters"
+            :key="filter.name || filter"
+            size="small"
+            color="primary"
+            variant="tonal"
+            closable
+            @click="showMobileFilters = true"
+          >
+            {{ getFilterChipText(filter.name || filter) }}
+          </v-chip>
+        </div>
+
+        <div class="w-100 pa-2 d-flex flex-column shrink-0 bg-surface">
+          <search-box
+            :filterObject="dictionaryStore.filter.text"
+            :specialCharacters="
+              dictionaryStore.dictionary.specialCharacters.all
+            "
+            @toggle-filters="toggleMobileFilters"
+            @input-focus="showMobileFilters = false"
+          ></search-box>
+        </div>
+      </div>
+    </v-footer>
 
     <v-navigation-drawer
       v-model="shouldShowPanel"
