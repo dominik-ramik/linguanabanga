@@ -34,6 +34,7 @@
     "selectMoreText": "Voulez-vous sélectionner d'autres dictionnaires ?",
     "selectMoreYes": "Oui",
     "selectMoreNo": "Non",
-    "confirmSelection": "Confirmer la sélection des dictionnaires"
+    "confirmSelection": "Confirmer la sélection des dictionnaires",
+    "entries": "entrées"
   }
 }

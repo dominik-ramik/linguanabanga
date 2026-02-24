@@ -47,6 +47,27 @@ const isStorageFull = computed(
   () => dictionaryStore.cache?.storageFull ?? false
 );
 
+// Helper to calculate number of entries for a given projectId
+function getProjectEntriesCount(projectId) {
+  try {
+    const tables = dictionaryStore.dictionary.tables || [];
+    let total = 0;
+    for (const table of tables) {
+      if (table?.meta?.project === projectId) {
+        total += (Array.isArray(table.data) ? table.data.length : 0);
+      }
+    }
+    return total;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function formatNumberWithSpaces(n) {
+  if (n === undefined || n === null) return "0";
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
 // --- CHIP FILTER LOGIC ---
 function extractMenuPathSegments(projects) {
   const levels = [];
@@ -210,13 +231,13 @@ const chipBgColorForLevel = (level, selected) => {
   const baseHue = 220; // blue-ish, adjust as needed
   const baseSat = 80;
   const baseLight = selected ? 40 : 90; // darker if selected, lighter if not
-  const step = selected ? 10 : 5; // how much to lighten/darken per level
+  const step = selected ? 30 : 10; // how much to lighten/darken per level
   const lightness = Math.min(baseLight + level * step, 98);
   const textColor = selected ? "#fff" : "#222";
   return {
     backgroundColor: `hsl(${baseHue}, ${baseSat}%, ${lightness}%)`,
     color: textColor,
-    border: selected ? "2px solid #3b4997" : "1px solid #bfc8e6",
+    border: selected ? "2px solid #3b4997" : "0px solid transparent",
     fontWeight: selected ? "bold" : "normal",
   };
 };
@@ -321,7 +342,7 @@ const chipBgColorForLevel = (level, selected) => {
                 class="mr-1"
                 style="pointer-events: none"
               >
-                {{ getProjectNeedsMB(item.id) }} MB
+                {{ getProjectNeedsMB(item.id) }} MB, {{ formatNumberWithSpaces(getProjectEntriesCount(item.id)) }} {{ t('languageSelectorView.entries') }}
               </v-chip>
             </div>
           </v-card>

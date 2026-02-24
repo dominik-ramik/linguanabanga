@@ -1,8 +1,9 @@
 <script setup>
 import { ref, watch } from "vue";
-import router from "@/router";
+import { useRouter } from "vue-router";
 import { useDictionaryStore } from "@/store/DictionaryStore";
 
+const router = useRouter();
 const dictionaryStore = useDictionaryStore();
 
 const props = defineProps(["tabId"]);

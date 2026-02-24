@@ -35,6 +35,8 @@
     "selectMoreYes": "Yes",
     "selectMoreNo": "No",
     "confirmSelection": "Confirm selected dictionaries"
+    ,
+    "entries": "entries"
   },
   "projectSelectionDialog": {
     "selectDictionaries": "Select dictionaries",
