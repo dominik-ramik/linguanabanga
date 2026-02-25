@@ -13,8 +13,8 @@ const passedProps = defineProps([
   "actionPanelModel",
 ]);
 
-// ADDED "input-focus" to the emits
-const emit = defineEmits(["toggle-filters", "input-focus"]);
+// ADDED "input-focus" and "input-typing" to the emits
+const emit = defineEmits(["toggle-filters", "input-focus", "input-typing"]);
 
 const fulltextSearch = ref(null);
 
@@ -78,7 +78,9 @@ watch(
     clearable
     style="max-width: 630px"
     clear-icon="mdi-close-circle"
-    @focus="emit('input-focus')" 
+    @focus="emit('input-focus')"
+    @input="emit('input-typing')"
+    @keydown="emit('input-typing')"
   >
     <template v-slot:append-inner>
       <div class="d-flex align-center">

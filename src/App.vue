@@ -420,6 +420,7 @@ function removeFilterGroup(filter) {
             "
             @toggle-filters="toggleMobileFilters"
             @input-focus="showMobileFilters = false"
+            @input-typing="showMobileFilters = false"
           ></search-box>
         </div>
       </div>
