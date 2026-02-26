@@ -114,7 +114,7 @@ const selectedProjects = computed(() => {
     Powered by <span class="font-weight-bold" style="cursor: pointer;" onClick="window.open('https://github.com/dominik-ramik/lingua-nabanga', '_blank')">{{ $t('appName') }}</span> v{{ version }}
   </div>
   <div class="ma-2 text-caption" v-if="dictionaryStore.filter.selectedProjects?.length > 0">
-    <div class="font-weight-bold">Open projects</div>
+    <div class="font-weight-bold">{{ $t('mainMenu.languagesOpened') }}</div>
     <ShowMoreItems :items="Object.keys(selectedProjects).map((p) => selectedProjects[p].projectId)
       " :maxItemsShown="3" v-slot="slotProps">
       <div class="ml-2">

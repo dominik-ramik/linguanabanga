@@ -6,10 +6,11 @@
     "aboutAppTitle": "About @:appName",
     "aboutAppText": "@:appName is a web app for building and browsing multilingual, project-based dictionaries. It loads structured data from JSON, supports Markdown content, multimedia, and offers fast text search with configurable fuzziness.\n\n\n\nIt works offline (PWA) and supports flexible data types and presentation, including images and audio.\n\n\n\nData format: content lives in a simple Excel spreadsheet (XLSX) and a plain folder structure for media. You can compile them into a single data.json with the built-in importer.\n\n\n\nOriginally created for the *Plants mo Pipol blong Vanuatu* research project. Developed and maintained by **Dominik M. Ramík** — [dominicweb.eu](https://dominicweb.eu).\n\n\n\nSource code and issues: [github.com/dominik-ramik/linguanabanga](https://github.com/dominik-ramik/linguanabanga).",
     "settings": "Settings",
-    "selectDictionary": "Select dictionary",
+    "selectDictionary": "Select language",
     "selectDisplayLanguage": "Select display language",
     "availableDictionaries": "Available dictionaries:",
-    "noDictionariesAvailable": "No dictionaries available"
+    "noDictionariesAvailable": "No dictionaries available",
+    "languagesOpened": "Languages opened"
   },
   "manage": {
     "heading": "Import data"
@@ -27,21 +28,20 @@
     "remaining": "remaining",
     "preparingOffline": "Preparing for offline use",
     "storageFull": "Storage is full. Free some space on your device to complete offline preparation.",
-    "selectedDictionaries": "Selected dictionaries:",
+    "selectedDictionaries": "Selected languages:",
     "all": "Everywhere",
-    "filterByMenuPath": "Show dictionaries from:",
-    "selectMoreTitle": "Select more dictionaries?",
-    "selectMoreText": "Do you want to select more dictionaries?",
+    "filterByMenuPath": "Show languages from:",
+    "selectMoreTitle": "Select more languages?",
+    "selectMoreText": "Do you want to select more languages?",
     "selectMoreYes": "Yes",
     "selectMoreNo": "No",
-    "confirmSelection": "Confirm selected dictionaries"
-    ,
+    "confirmSelection": "Confirm selected languages",
     "entries": "entries"
   },
   "projectSelectionDialog": {
-    "selectDictionaries": "Select dictionaries",
-    "dialogTitle": "Dictionary selection",
-    "selectHint": "Select one or several dictionaries you want to search through",
+    "selectDictionaries": "Select languages",
+    "dialogTitle": "Language selection",
+    "selectHint": "Select one or several languages you want to search through",
     "close": "Close"
   }
   ,

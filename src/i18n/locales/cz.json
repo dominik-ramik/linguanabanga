@@ -6,10 +6,11 @@
     "aboutAppTitle": "O @:appName",
     "aboutAppText": "@:appName je webová aplikace pro tvorbu a procházení vícejazyčných, projektově zaměřených slovníků. Načítá strukturovaná data z JSONu, podporuje obsah v Markdownu a nabízí rychlé fulltextové vyhledávání s konfigurovatelnou tolerancí.\n\n\n\nFunguje offline (PWA) a podporuje flexibilní typy dat i způsoby zobrazení, včetně obrázků a audia.\n\n\n\nFormát dat: obsah je uložen v jednoduchém excelovém sešitu (XLSX) a v přehledné adresářové struktuře pro média. Pomocí vestavěného importéru je můžete zkompilovat do jediného souboru data.json.\n\n\n\nPůvodně vytvořeno pro výzkumný projekt *Plants mo Pipol blong Vanuatu*. Vyvíjí a udržuje **Dominik M. Ramík** — [dominicweb.eu](https://dominicweb.eu).\n\n\n\nZdrojový kód a hlášení problémů: [github.com/dominik-ramik/linguanabanga](https://github.com/dominik-ramik/linguanabanga).",
     "settings": "Nastavení",
-    "selectDictionary": "Vybrat slovník",
+    "selectDictionary": "Vybrat jazyk",
     "selectDisplayLanguage": "Vyberte jazyk zobrazení",
     "availableDictionaries": "Dostupné slovníky:",
-    "noDictionariesAvailable": "Žádné slovníky nejsou k dispozici"
+    "noDictionariesAvailable": "Žádné slovníky nejsou k dispozici",
+    "languagesOpened": "Otevřené jazyky"
   },
   "manage": {
     "heading": "Import dat"
@@ -28,16 +29,22 @@
     "preparingOffline": "Příprava pro offline použití",
     "storageFull": "Úložiště je plné. Uvolněte místo na svém zařízení pro dokončení offline přípravy.",
     "selectedDictionaries": "Vybrané slovníky:",
-    "all": "Odevšad",
-    "filterByMenuPath": "Zobrazit slovníky z:",
-    "selectMoreTitle": "Vybrat další slovníky?",
-    "selectMoreText": "Chcete vybrat další slovníky?",
+    "all": "Všude",
+    "filterByMenuPath": "Zobrazit jazyky z:",
+    "selectMoreTitle": "Vybrat více jazyků?",
+    "selectMoreText": "Chcete vybrat více jazyků?",
     "selectMoreYes": "Ano",
     "selectMoreNo": "Ne",
-    "confirmSelection": "Potvrdit výběr slovníků",
+    "confirmSelection": "Potvrdit vybrané jazyky",
     "entries": "záznamů"
   }
   ,
+  "projectSelectionDialog": {
+    "selectDictionaries": "Vybrat jazyky",
+    "dialogTitle": "Výběr jazyka",
+    "selectHint": "Vyberte jeden nebo více jazyků, ve kterých chcete vyhledávat",
+    "close": "Zavřít"
+  },
   "ui": {
     "clearAll": "Vymazat vše",
     "applyAndClose": "Použít a zavřít"
