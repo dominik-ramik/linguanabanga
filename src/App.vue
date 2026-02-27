@@ -332,7 +332,7 @@ function removeFilterGroup(filter) {
       >
         <v-expand-transition>
           <div
-            v-if="showMobileFilters"
+            v-if="showMobileFilters && dictionaryStore.filter.currentFilters.length > 0"
             class="bg-surface d-flex flex-column elevation-8"
             style="
               max-height: 45vh;

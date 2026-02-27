@@ -1,4 +1,5 @@
 import { ref, computed, watch, onScopeDispose, toRaw } from 'vue'
+import { useStorage } from '@vueuse/core'
 
 export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, preloadableAssetsRef) {
 
@@ -21,14 +22,8 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
 
     const swAvailable = ('serviceWorker' in navigator)
 
-    // --- Auto Offline Ready toggle (persisted to localStorage) ---
-    function getAutoOfflineReadyFromStorage() {
-        const v = localStorage.getItem('autoOfflineReady');
-        if (v === null) return true;
-        return v === 'true';
-    }
-
-    const autoOfflineReady = ref(getAutoOfflineReadyFromStorage())
+    // --- Auto Offline Ready toggle (persisted to localStorage via useStorage) ---
+    const autoOfflineReady = useStorage('autoOfflineReady', false, localStorage)
 
     // --- Helper: send a message to the service worker ---
     // Use JSON round-trip to strip Vue reactive proxies (which can't be structured-cloned by postMessage)
@@ -79,7 +74,6 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
     watch(
         () => autoOfflineReady.value,
         (newVal) => {
-            localStorage.setItem('autoOfflineReady', String(newVal));
             console.log('[SW-client] autoOfflineReady toggled ->', newVal);
             if (!preloadableAssets.value?.length) return;
             // Trigger full reconcile; the SW respects the autoOfflineReady flag

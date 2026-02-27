@@ -1,14 +1,10 @@
 <script setup>
-import {
-  ref,
-  computed,
-  watch,
-  onUnmounted,
-} from "vue";
+import { ref, computed, watch, onUnmounted } from "vue";
 import { useDictionaryStore } from "@/store/DictionaryStore";
 import { useI18n } from "vue-i18n";
 import { i18n } from "@/i18n";
 import { useRoute } from "vue-router";
+import { useStorage } from "@vueuse/core";
 
 const { t } = useI18n();
 const dictionaryStore = useDictionaryStore();
@@ -17,34 +13,19 @@ const route = useRoute();
 const isSearchRoute = computed(() => route.name === "search");
 
 // --- OFFLINE READINESS ---
-const autoOfflineReady = computed({
-    get: () => {
-    try {
-      return dictionaryStore.cache?.autoOfflineReady?.value ?? true;
-    } catch (e) {
-      return true;
-    }
-  },
-  set: (val) => {
-    if (dictionaryStore.cache && dictionaryStore.cache.autoOfflineReady) {
-      try {
-        console.log('[UI] autoOfflineReady set ->', val);
-      } catch (e) { /* ignore */ }
-      dictionaryStore.cache.autoOfflineReady.value = val;
-    }
-  },
-});
+const autoOfflineReady = useStorage("autoOfflineReady", false, localStorage);
+
 const isCaching = computed(
-  () => dictionaryStore.cache?.queueBeingProcessed ?? false
+  () => dictionaryStore.cache?.queueBeingProcessed ?? false,
 );
 const downloadProgress = computed(
-  () => dictionaryStore.cache?.downloadProgress ?? 0
+  () => dictionaryStore.cache?.downloadProgress ?? 0,
 );
 const downloadSizeMB = computed(() =>
-  (dictionaryStore.cache?.requiredDownloadSize ?? 0).toFixed(1)
+  (dictionaryStore.cache?.requiredDownloadSize ?? 0).toFixed(1),
 );
 const isStorageFull = computed(
-  () => dictionaryStore.cache?.storageFull ?? false
+  () => dictionaryStore.cache?.storageFull ?? false,
 );
 
 // Helper to calculate number of entries for a given projectId
@@ -54,7 +35,7 @@ function getProjectEntriesCount(projectId) {
     let total = 0;
     for (const table of tables) {
       if (table?.meta?.project === projectId) {
-        total += (Array.isArray(table.data) ? table.data.length : 0);
+        total += Array.isArray(table.data) ? table.data.length : 0;
       }
     }
     return total;
@@ -83,20 +64,20 @@ function extractMenuPathSegments(projects) {
     });
   });
   return levels.map((levelSet) =>
-    Array.from(levelSet).sort((a, b) => a.localeCompare(b))
+    Array.from(levelSet).sort((a, b) => a.localeCompare(b)),
   );
 }
 
 const allProjects = computed(() => {
   const lang = i18n.global.locale.value;
   const entries = Object.entries(
-    dictionaryStore.dictionary.allVersionsProjectsMeta?.[lang]?.projects || {}
+    dictionaryStore.dictionary.allVersionsProjectsMeta?.[lang]?.projects || {},
   ).map((e) => e[1]);
   return entries.filter((entry) => entry.translations?.includes(lang));
 });
 
 const menuPathLevels = computed(() =>
-  extractMenuPathSegments(allProjects.value)
+  extractMenuPathSegments(allProjects.value),
 );
 const selectedChip = ref("All");
 const filterChips = computed(() => {
@@ -122,7 +103,7 @@ const filteredProjects = computed(() => {
 const localSelected = ref(
   Array.isArray(dictionaryStore.filter.selectedProjects)
     ? [...dictionaryStore.filter.selectedProjects]
-    : []
+    : [],
 );
 
 const rows = computed(() => {
@@ -192,7 +173,7 @@ watch(
       dictionaryStore.filter.selectedProjects = [...val];
     }
   },
-  { deep: true }
+  { deep: true },
 );
 
 // beforeUnmount: sync local selection to the store (overwrite, not union merge)
@@ -244,8 +225,6 @@ const chipBgColorForLevel = (level, selected) => {
 </script>
 
 <template>
-
-
   <div v-if="showConfirmSelectionBtn" class="d-flex justify-center mt-2">
     <v-btn color="primary" @click="confirmSelection">
       {{ t("languageSelectorView.confirmSelection") }}
@@ -254,6 +233,58 @@ const chipBgColorForLevel = (level, selected) => {
 
   <div class="ma-2 pa-2">
     <v-card-text>
+      <!-- Offline readiness -->
+      <v-card class="pa-3 pt-0 pb-0 mt-0 mb-6">
+        <v-card-text>
+          <v-switch
+            v-model="autoOfflineReady"
+            :label="t('languageSelectorView.autoOfflineReadyTitle')"
+            color="primary"
+            hide-details
+          />
+          <div class="text-body-2 text-medium-emphasis ml-12 mt-n1 mb-2">
+            {{ t("languageSelectorView.autoOfflineReadyDesc") }}
+          </div>
+
+          <v-alert
+            v-if="!autoOfflineReady && !noSelection"
+            type="warning"
+            variant="tonal"
+            density="compact"
+            class="mt-2"
+          >
+            {{ t("languageSelectorView.autoOfflineReadyWarning") }}
+          </v-alert>
+
+          <v-alert
+            v-if="isStorageFull"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="mt-2"
+            icon="mdi-harddisk-remove"
+          >
+            {{ t("languageSelectorView.storageFull") }}
+          </v-alert>
+
+          <div
+            v-if="autoOfflineReady && isCaching && downloadSizeMB > 0"
+            class="mt-3"
+          >
+            <v-progress-linear
+              :model-value="downloadProgress"
+              color="primary"
+              height="6"
+              rounded
+              class="offline-progress-stripe"
+            />
+            <div class="text-caption text-medium-emphasis mt-1">
+              {{ downloadSizeMB }} MB {{ t("languageSelectorView.remaining") }}
+            </div>
+          </div>
+        </v-card-text>
+      </v-card>
+
       <!-- Filter chips UI -->
       <v-sheet
         class="mb-2 d-flex flex-row align-center"
@@ -342,62 +373,14 @@ const chipBgColorForLevel = (level, selected) => {
                 class="mr-1"
                 style="pointer-events: none"
               >
-                {{ formatNumberWithSpaces(getProjectEntriesCount(item.id)) }} {{ t('languageSelectorView.entries') }}, {{ getProjectNeedsMB(item.id) }} MB
+                {{ formatNumberWithSpaces(getProjectEntriesCount(item.id)) }}
+                {{ t("languageSelectorView.entries") }},
+                {{ getProjectNeedsMB(item.id) }} MB
               </v-chip>
             </div>
           </v-card>
         </v-col>
       </v-row>
-
-      <!-- Offline readiness -->
-      <v-card class="pa-3 pt-0 pb-0 mt-4">
-        <v-card-text>
-          <v-switch
-            v-model="autoOfflineReady"
-            :label="t('languageSelectorView.autoOfflineReadyTitle')"
-            color="primary"
-            hide-details
-            :disabled="noSelection"            
-          />
-          <div class="text-body-2 text-medium-emphasis ml-12 mt-n1 mb-2">
-            {{ t("languageSelectorView.autoOfflineReadyDesc") }}
-          </div>
-
-          <v-alert
-            v-if="!autoOfflineReady && !noSelection"
-            type="warning"
-            variant="tonal"
-            density="compact"
-            class="mt-2"
-          >
-            {{ t("languageSelectorView.autoOfflineReadyWarning") }}
-          </v-alert>
-
-          <v-alert
-            v-if="isStorageFull"
-            type="error"
-            variant="tonal"
-            density="compact"
-            class="mt-2"
-            icon="mdi-harddisk-remove"
-          >
-            {{ t("languageSelectorView.storageFull") }}
-          </v-alert>
-
-          <div v-if="autoOfflineReady && isCaching && downloadSizeMB > 0" class="mt-3">
-            <v-progress-linear
-              :model-value="downloadProgress"
-              color="primary"
-              height="6"
-              rounded
-              class="offline-progress-stripe"
-            />
-            <div class="text-caption text-medium-emphasis mt-1">
-              {{ downloadSizeMB }} MB {{ t("languageSelectorView.remaining") }}
-            </div>
-          </div>
-        </v-card-text>
-      </v-card>
 
       <!-- Modal dialog for select more dictionaries -->
       <v-dialog v-model="showSelectMoreDialog" max-width="400">
@@ -420,7 +403,6 @@ const chipBgColorForLevel = (level, selected) => {
       </v-dialog>
     </v-card-text>
   </div>
-
 </template>
 
 <style scoped>
@@ -436,7 +418,9 @@ const chipBgColorForLevel = (level, selected) => {
 }
 
 .dictionary-card {
-  transition: box-shadow 0.2s, background 0.2s;
+  transition:
+    box-shadow 0.2s,
+    background 0.2s;
 }
 .dictionary-card--compact {
   max-width: 260px;

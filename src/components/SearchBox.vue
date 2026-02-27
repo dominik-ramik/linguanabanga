@@ -61,9 +61,20 @@ watch(
     debounceText.value = newValue;
   },
 );
+
+const textFiledIsFocused = ref(false);
 </script>
 
 <template>
+  <div v-if="textFiledIsFocused">
+    <v-btn-toggle v-model="text" color="deep-purple-accent-3" rounded="0" group>
+      <v-btn value="left"> Left </v-btn>
+      <v-btn value="center"> Center </v-btn>
+      <v-btn value="right"> Right </v-btn>
+      <v-btn value="justify"> Justify </v-btn>
+    </v-btn-toggle>
+  </div>
+
   <v-text-field
     ref="fulltextSearch"
     :loading="loading"
@@ -78,7 +89,8 @@ watch(
     clearable
     style="max-width: 630px"
     clear-icon="mdi-close-circle"
-    @focus="emit('input-focus')"
+    @focus="emit('input-focus'); textFiledIsFocused = true"
+    @blur="textFiledIsFocused = false"
     @input="emit('input-typing')"
     @keydown="emit('input-typing')"
   >
@@ -113,7 +125,7 @@ watch(
         </v-menu>
 
         <v-btn
-          v-if="mobile"
+          v-if="mobile && dictionaryStore.filter.currentFilters.length > 0"
           icon
           variant="text"
           :density="mobile ? 'compact' : 'default'"
