@@ -85,6 +85,15 @@ function handleGlobalScroll(event) {
 
   if (event.target === document) {
     showMobileFilters.value = false;
+    // remove focus from the searchbox textbox
+    try {
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) {
+        ae.blur();
+      }
+    } catch (e) {
+      /* ignore */
+    }
   }
 }
 
@@ -213,8 +222,7 @@ function removeFilterGroup(filter) {
       loadingDelay < maxTimeout
     "
   >
-    <SplashScreen v-if="true" />
-    <!-- TODO remove in production -->
+    <SplashScreen />
   </v-app>
 
   <v-app v-else>
@@ -265,6 +273,7 @@ function removeFilterGroup(filter) {
 
       <search-box
         class="mr-3"
+        style="min-width: 600px; max-width: 60vw;"
         :filterObject="dictionaryStore.filter.text"
         :specialCharacters="dictionaryStore.dictionary.specialCharacters.all"
         v-if="!mobile && route.name == 'search'"

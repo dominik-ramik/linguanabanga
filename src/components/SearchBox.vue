@@ -4,8 +4,8 @@ import { useDictionaryStore } from "@/store/DictionaryStore.js";
 import { useDisplay } from "vuetify";
 
 const dictionaryStore = useDictionaryStore();
-
 const { mobile } = useDisplay();
+
 const passedProps = defineProps([
   "filterObject",
   "specialCharacters",
@@ -13,17 +13,27 @@ const passedProps = defineProps([
   "actionPanelModel",
 ]);
 
-// ADDED "input-focus" and "input-typing" to the emits
 const emit = defineEmits(["toggle-filters", "input-focus", "input-typing"]);
 
 const fulltextSearch = ref(null);
+const stringSearchMode = ref("anywhere");
+
+// ADDED: shortTitle for compact mobile displays
+const searchModes = [
+  { title: "Search everywhere", value: "anywhere" },
+  { title: "Entry starting with", value: "begining" },
+  { title: "Anything starting with", value: "right" },
+];
+
+const loading = computed(
+  () => !!dictionaryStore && !dictionaryStore.dictionary?.isReady,
+);
 
 function appendSpecialCharacter(char) {
   let cursorPosition = fulltextSearch.value.selectionStart;
-
   let text = dictionaryStore.filter.text;
 
-  if (dictionaryStore.filter.text && dictionaryStore.filter.text.length > 0) {
+  if (text && text.length > 0) {
     dictionaryStore.filter.text =
       text.substring(0, cursorPosition) + char + text.substring(cursorPosition);
   } else {
@@ -40,20 +50,14 @@ function appendSpecialCharacter(char) {
 }
 
 const debounceText = ref(dictionaryStore.filter.text);
-
 let _debounceRoutingTimer = null;
-watch(
-  () => debounceText,
-  () => {
-    //update the filter text with debounce
-    clearTimeout(_debounceRoutingTimer);
-    _debounceRoutingTimer = setTimeout(() => {
-      //debounce
-      dictionaryStore.filter.text = debounceText.value;
-    }, 500);
-  },
-  { deep: true },
-);
+
+watch(debounceText, (newValue) => {
+  clearTimeout(_debounceRoutingTimer);
+  _debounceRoutingTimer = setTimeout(() => {
+    dictionaryStore.filter.text = newValue;
+  }, 500);
+});
 
 watch(
   () => dictionaryStore.filter.text,
@@ -66,81 +70,107 @@ const textFiledIsFocused = ref(false);
 </script>
 
 <template>
-  <div v-if="textFiledIsFocused">
-    <v-btn-toggle v-model="text" color="deep-purple-accent-3" rounded="0" group>
-      <v-btn value="left"> Left </v-btn>
-      <v-btn value="center"> Center </v-btn>
-      <v-btn value="right"> Right </v-btn>
-      <v-btn value="justify"> Justify </v-btn>
-    </v-btn-toggle>
-  </div>
-
-  <v-text-field
-    ref="fulltextSearch"
-    :loading="loading"
-    prepend-inner-icon="mdi-magnify"
-    :class="mobile ? '' : 'mr-3'"
-    :variant="mobile ? 'flat' : 'solo'"
-    label="Search"
-    v-model="debounceText"
-    hide-details
-    single-line
-    :density="mobile ? 'compact' : 'default'"
-    clearable
-    style="max-width: 630px"
-    clear-icon="mdi-close-circle"
-    @focus="emit('input-focus'); textFiledIsFocused = true"
-    @blur="textFiledIsFocused = false"
-    @input="emit('input-typing')"
-    @keydown="emit('input-typing')"
-  >
-    <template v-slot:append-inner>
-      <div class="d-flex align-center">
-        <v-menu v-if="passedProps.specialCharacters">
-          <template v-slot:activator="{ props }">
-            <v-btn
-              icon
-              variant="text"
-              v-bind="props"
-              :density="mobile ? 'compact' : 'default'"
-            >
-              <v-icon color="primary">mdi-keyboard</v-icon>
-            </v-btn>
-          </template>
-          <v-card variant="elevated" style="max-width: 470px">
-            <template v-slot:text>
-              <div class="d-flex flex-wrap justify-center">
-                <v-btn
-                  v-for="char in passedProps.specialCharacters"
-                  v-bind:key="char"
-                  class="ma-1"
-                  variant="tonal"
-                  color="primary"
-                  @click.stop="appendSpecialCharacter(char)"
-                  >{{ char }}</v-btn
-                >
-              </div>
-            </template>
-          </v-card>
-        </v-menu>
-
-        <v-btn
-          v-if="mobile && dictionaryStore.filter.currentFilters.length > 0"
-          icon
-          variant="text"
-          :density="mobile ? 'compact' : 'default'"
-          @click.prevent.stop="emit('toggle-filters', $event)"
-          class="ml-4"
+  <div class="d-flex flex-nowrap justify-end w-100 mobile-dropdown">
+    <v-select
+      v-model="stringSearchMode"
+      :items="searchModes"
+      item-title="title"
+      item-value="value"
+      :density="mobile ? 'compact' : 'default'"
+      :variant="mobile ? 'plain' : 'text'"
+      hide-details
+      :class="mobile ? 'ma-0 pa-0' : 'mr-2'"
+      :style="
+        mobile ? 'max-width: 25vw;' : 'min-width: 200px; max-width: 220px;'
+      "
+    >
+      <template v-slot:selection="{ item }">
+        <span
+          :style="
+            mobile
+              ? 'font-size: 0.70rem; max-height: 24px; margin: 0; padding: 0; line-height: 100%'
+              : ''
+          "
         >
-          <v-badge
-            color="error"
-            :content="dictionaryStore.filter.activeFilters.length"
-            :model-value="dictionaryStore.filter.activeFilters.length > 0"
+          {{ item.raw.title }}
+        </span>
+      </template>
+    </v-select>
+
+    <v-text-field
+      ref="fulltextSearch"
+      :loading="loading"
+      :variant="mobile ? 'flat' : 'solo'"
+      :label="mobile ? $t('searchBox.shortLabel') : $t('searchBox.label')"
+      v-model="debounceText"
+      hide-details
+      single-line
+      :density="mobile ? 'compact' : 'default'"
+      clearable
+      class="flex-grow-1"
+      :style="mobile ? '' : 'max-width: 500px;'"
+      clear-icon="mdi-close-circle"
+      @focus="
+        emit('input-focus');
+        textFiledIsFocused = true;
+      "
+      @blur="textFiledIsFocused = false"
+      @input="emit('input-typing')"
+      @keydown="emit('input-typing')"
+    >
+      <template v-slot:prepend-inner>
+        <v-icon class="mr-1" color="primary">mdi-magnify</v-icon>
+      </template>
+
+      <template v-slot:append-inner>
+        <div class="d-flex align-center">
+          <v-menu v-if="passedProps.specialCharacters">
+            <template v-slot:activator="{ props }">
+              <v-btn
+                icon
+                variant="text"
+                v-bind="props"
+                :density="mobile ? 'compact' : 'default'"
+              >
+                <v-icon color="primary">mdi-keyboard</v-icon>
+              </v-btn>
+            </template>
+            <v-card variant="elevated" style="max-width: 470px">
+              <v-card-text>
+                <div class="d-flex flex-wrap justify-center">
+                  <v-btn
+                    v-for="char in passedProps.specialCharacters"
+                    :key="char"
+                    class="ma-1"
+                    variant="tonal"
+                    color="primary"
+                    @click.stop="appendSpecialCharacter(char)"
+                  >
+                    {{ char }}
+                  </v-btn>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-menu>
+
+          <v-btn
+            v-if="mobile && dictionaryStore.filter.currentFilters.length > 0"
+            icon
+            variant="text"
+            :density="mobile ? 'compact' : 'default'"
+            @click.prevent.stop="emit('toggle-filters', $event)"
+            class="ml-2"
           >
-            <v-icon color="primary">mdi-binoculars</v-icon>
-          </v-badge>
-        </v-btn>
-      </div>
-    </template>
-  </v-text-field>
+            <v-badge
+              color="error"
+              :content="dictionaryStore.filter.activeFilters.length"
+              :model-value="dictionaryStore.filter.activeFilters.length > 0"
+            >
+              <v-icon color="primary">mdi-binoculars</v-icon>
+            </v-badge>
+          </v-btn>
+        </div>
+      </template>
+    </v-text-field>
+  </div>
 </template>

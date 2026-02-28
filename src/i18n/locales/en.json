@@ -45,6 +45,10 @@
     "close": "Close"
   }
   ,
+  "searchBox": {
+    "label": "Search the dictionary",
+    "shortLabel": "Search"
+  },
   "ui": {
     "clearAll": "Clear all",
     "applyAndClose": "Apply & Close"

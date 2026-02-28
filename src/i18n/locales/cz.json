@@ -45,6 +45,10 @@
     "selectHint": "Vyberte jeden nebo více jazyků, ve kterých chcete vyhledávat",
     "close": "Zavřít"
   },
+  "searchBox": {
+    "label": "Hledat ve slovníku",
+    "shortLabel": "Hledat"
+  },
   "ui": {
     "clearAll": "Vymazat vše",
     "applyAndClose": "Použít a zavřít"

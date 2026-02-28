@@ -45,6 +45,10 @@
     "selectHint": "Sélectionnez une ou plusieurs langues que vous souhaitez rechercher",
     "close": "Fermer"
   },
+  "searchBox": {
+    "label": "Rechercher dans le dictionnaire",
+    "shortLabel": "Rechercher"
+  },
   "ui": {
     "clearAll": "Supprimer tout",
     "applyAndClose": "Appliquer et fermer"
