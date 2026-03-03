@@ -377,6 +377,13 @@ const chipBgColorForLevel = (level, selected) => {
                 {{ t("languageSelectorView.entries") }},
                 {{ getProjectNeedsMB(item.id) }} MB
               </v-chip>
+              <div
+                v-if="item.placement"
+                class="mt-3 ml-1"
+                style="font-size: 0.75em; opacity: 0.7; word-break: break-all"
+              >
+                {{ item.placement.replace(/\//g, ' / ') }}
+              </div>
             </div>
           </v-card>
         </v-col>
