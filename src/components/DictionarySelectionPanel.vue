@@ -82,14 +82,41 @@ const menuPathLevels = computed(() =>
 const selectedChip = ref("All");
 const filterChips = computed(() => {
   const chips = [
-    { label: t("languageSelectorView.all"), value: "All", level: -1 },
+    {
+      label: t("languageSelectorView.all"),
+      value: "All",
+      level: -1,
+      count: allProjects.value.length,
+    },
   ];
   menuPathLevels.value.forEach((levelArr, idx) => {
     levelArr.forEach((seg) => {
-      chips.push({ label: seg, value: seg, level: idx });
+      const count = allProjects.value.filter((proj) => {
+        if (!proj.menuPath) return false;
+        const segments = proj.menuPath
+          .split("/")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        return segments[idx] === seg;
+      }).length;
+      chips.push({ label: seg, value: seg, level: idx, count });
     });
   });
   return chips;
+});
+// Split chips into top-level and leaf (last-level) groups so leaves can be shown separately
+const lastMenuLevel = computed(() =>
+  menuPathLevels.value && menuPathLevels.value.length > 0
+    ? menuPathLevels.value.length - 1
+    : null,
+);
+const topLevelChips = computed(() => {
+  if (lastMenuLevel.value === null) return filterChips.value;
+  return filterChips.value.filter((chip) => chip.level !== lastMenuLevel.value);
+});
+const leafChips = computed(() => {
+  if (lastMenuLevel.value === null) return [];
+  return filterChips.value.filter((chip) => chip.level === lastMenuLevel.value);
 });
 const filteredProjects = computed(() => {
   if (selectedChip.value === "All") return allProjects.value;
@@ -287,33 +314,56 @@ const chipBgColorForLevel = (level, selected) => {
 
       <!-- Filter chips UI -->
       <v-sheet
-        class="mb-2 d-flex flex-row align-center"
+        class="mb-2"
         color="surface"
         elevation="0"
-        style="border-radius: 6px; width: 100%; flex-wrap: wrap; gap: 8px"
+        style="border-radius: 6px; width: 100%"
       >
-        <span class="font-weight-medium mr-3" style="font-size: 1.1em">
+        <div class="font-weight-medium mr-3" style="font-size: 1.1em">
           {{ $t("languageSelectorView.filterByMenuPath") }}
-        </span>
-        <v-chip-group
-          v-model="selectedChip"
-          selected-class="chip-selected"
-          column
+        </div>
+        <div
+          class="d-flex flex-row align-center"
+          style="flex-wrap: wrap; gap: 8px"
         >
-          <v-chip
-            v-for="chip in filterChips"
-            :key="chip.value + '-' + chip.level"
-            :value="chip.value"
-            :style="
-              chipBgColorForLevel(chip.level, selectedChip === chip.value)
-            "
-            label
-            size="small"
-            class="ma-1"
-          >
-            {{ chip.label }}
-          </v-chip>
-        </v-chip-group>
+          <v-chip-group v-model="selectedChip" selected-class="chip-selected">
+            <v-chip
+              v-for="chip in topLevelChips"
+              :key="chip.value + '-' + chip.level"
+              :value="chip.value"
+              :style="
+                chipBgColorForLevel(chip.level, selectedChip === chip.value)
+              "
+              label
+              size="small"
+              class="ma-1"
+            >
+              {{ chip.label }} ({{ chip.count }})
+            </v-chip>
+          </v-chip-group>
+        </div>
+
+        <div
+          v-if="leafChips.length"
+          class="d-flex flex-row align-center mt-0"
+          style="flex-wrap: wrap; gap: 8px"
+        >
+          <v-chip-group v-model="selectedChip" selected-class="chip-selected">
+            <v-chip
+              v-for="chip in leafChips"
+              :key="chip.value + '-' + chip.level"
+              :value="chip.value"
+              :style="
+                chipBgColorForLevel(chip.level, selectedChip === chip.value)
+              "
+              label
+              size="small"
+              class="ma-1"
+            >
+              {{ chip.label }} ({{ chip.count }})
+            </v-chip>
+          </v-chip-group>
+        </div>
       </v-sheet>
 
       <v-alert v-if="noSelection" type="info" variant="tonal" class="mb-4">
@@ -382,7 +432,7 @@ const chipBgColorForLevel = (level, selected) => {
                 class="mt-3 ml-1"
                 style="font-size: 0.75em; opacity: 0.7; word-break: break-all"
               >
-                {{ item.placement.replace(/\//g, ' / ') }}
+                {{ item.placement.replace(/\//g, " / ") }}
               </div>
             </div>
           </v-card>
