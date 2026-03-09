@@ -23,13 +23,13 @@ function setImage(value) {
 }
 
 const audioOptions = [
-  { title: "All", value: "all" },
+  { title: "All entries", value: "all" },
   { title: "With audio", value: "with" },
   { title: "Without audio", value: "without" },
 ];
 
 const imageOptions = [
-  { title: "All", value: "all" },
+  { title: "All entries", value: "all" },
   { title: "With images", value: "with" },
   { title: "Without images", value: "without" },
 ];
