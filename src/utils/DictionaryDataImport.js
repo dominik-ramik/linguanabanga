@@ -22,6 +22,15 @@ export let DictionaryDataImport = function () {
     let preloadableAssets = []
 
     function compileDictionary() {
+        // Ensure logs are cleared at the start of each compilation
+        try {
+            dictionaryDataImport.loggedMessages = []
+            dictionaryDataImport.hasErrors = false
+        } catch (e) {
+            // dictionaryDataImport may not be initialized yet; ignore
+        }
+
+        log("info", "Compiling dictionary...")
         console.log("Compiling")
 
         let currentDate = new Date()
@@ -41,6 +50,7 @@ export let DictionaryDataImport = function () {
             dictionary.versions[lang.code] = compileLanguageVersion(lang.code)
         })
 
+        log("info", "Dictionary compiled successfully")
         console.log("--- Compiled data")
 
         //do a test run unpacking references to see if all references exist
@@ -104,6 +114,7 @@ export let DictionaryDataImport = function () {
 
             if (unusedAssets.length > 0) {
                 console.log("Unused assets", unusedAssets)
+                unusedAssets.forEach((a) => log("warning", "Unused asset: " + a.path + " (lang: " + a.lang + ")"))
             }
 
             return usedAssets
@@ -157,6 +168,7 @@ export let DictionaryDataImport = function () {
                     sheetHasProjects = false
                 }
                 else if (projectsInSheet.length > 1 && projectsInSheet.indexOf(undefined) >= 0) {
+                    log("error", "Cannot have empty entries in 'projects' column in sheet " + sheetName)
                     console.error("Cannot have empty entries in 'projects' column in sheet" + sheetName)
                 }
                 else {
@@ -330,7 +342,8 @@ export let DictionaryDataImport = function () {
                 size = foundFile.size
             }
             else {
-                console.log("Missing file", path) //TODO put this to log
+                log("warning", "Missing file: " + path)
+                console.log("Missing file", path)
             }
 
             preloadableAssets.push({ path: path, size: size, tableName: [], lang: [] })
@@ -508,6 +521,7 @@ export let DictionaryDataImport = function () {
                 if (pathPosition == pathSegments.length - 1) {
                     //terminal node
                     if (Object.hasOwn(rowObjData, currentSegment)) {
+                        log("error", "Duplicate data path segment: " + currentSegment)
                         console.log("ERROR duplicity for: " + currentSegment)
                     }
                     let genericData = getGenericData(headers, row, computedPath, info, langCode, tableName)
@@ -799,6 +813,7 @@ export let DictionaryDataImport = function () {
                             let possibleFiles = otherFiles.filter((file) => file.name.startsWith(folderOrFileName + "/")).map((file) => file.name)
 
                             if (possibleFiles.length == 0) {
+                                log("warning", "Empty image folder: " + folderOrFileName)
                                 console.error("Empty image folder:", folderOrFileName)
                             }
 
@@ -816,6 +831,7 @@ export let DictionaryDataImport = function () {
                     }
                     break
                 default:
+                    log("warning", "Unknown data type: " + info.type)
                     console.log("Unknown data type: " + info.type)
                     break
             }
@@ -919,6 +935,7 @@ export let DictionaryDataImport = function () {
                                         }
                                         break
                                     default:
+                                        log("warning", "Unknown integrity allowed content: " + integrity.allowedContent)
                                         console.log("Unknown integrity allowed content: " + integrity.allowedContent)
                                         break
                                 }
@@ -1177,22 +1194,28 @@ export let DictionaryDataImport = function () {
     let FilesystemOperations = {
         dataFolderDropHandler: async function (e, dataReadyCallback) {
 
+            dictionaryDataImport.loggedMessages = []
+            dictionaryDataImport.hasErrors = false
+
             preloadableAssets = []
             textFiles = []
             otherFiles = []
 
+            try {
+
+            // IMPORTANT: access e.dataTransfer.items synchronously before any await,
+            // because the browser clears the DataTransfer after the event handler yields.
             const fileHandlesPromises = [...e.dataTransfer.items]
                 .filter((item) => item.kind === 'file')
                 .map((item) => item.getAsFileSystemHandle())
 
+            await reportProgress("Reading dropped files...")
+
             let files = []
             preloadableAssets = []
 
-            //console.time("Parsing dropped files")
-
             for await (const handle of fileHandlesPromises) {
                 if (handle.kind === 'directory') {
-                    //console.log(`Directory: ${handle.name}`)
                     let path = [handle.name]
                     let contents = []
 
@@ -1212,38 +1235,32 @@ export let DictionaryDataImport = function () {
                 }
             }
 
-            files.forEach(async (item) => {
+            for (const item of files) {
                 let lowerCasePath = item.path_components.toLowerCase()
                 if (lowerCasePath.endsWith('.txt') || lowerCasePath.endsWith('.md')) {
-                    //console.log('xx')
                     let content = await readText(item)
                     textFiles.push({ name: "/" + trimChar(item.path_components, "/"), content: content })
                 }
                 else {
                     otherFiles.push({ name: "/" + trimChar(item.path_components, "/"), type: item.type, size: item.size })
                 }
-            })
+            }
 
-            //console.timeEnd("Parsing dropped files")
-
-            let breakLoop = false
             let foundSpreadsheet = false
-            files.forEach(async (item) => {
-                if (breakLoop)
-                    return
+            for (const item of files) {
                 if (item.path_components.split('/')[1].endsWith('dictionary.xlsx')) {
                     foundSpreadsheet = true
                     let fileArrayBuffer = await item.arrayBuffer()
 
                     let extractor = new ExcelImport(fileArrayBuffer)
 
-                    //console.time("Check metadata validity")                    
+                    await reportProgress("Loading metadata...")
+                    log("info", "Loading metadata...")
                     extractor.loadMeta(dataStructure, log)
+                    await reportProgress("Validating metadata...")
                     checkMetaValidity()
-                    //console.timeEnd("Check metadata validity")
-                    //console.time("Postprocess metadata")
+                    await reportProgress("Postprocessing metadata...")
                     postprocessMetadata()
-                    //console.timeEnd("Postprocess metadata")
 
                     let sheetsToLoad = []
 
@@ -1253,9 +1270,9 @@ export let DictionaryDataImport = function () {
                         }
                     })
 
-                    //console.time("Sheets loading")
+                    await reportProgress("Loading " + sheetsToLoad.length + " data sheet(s)...")
+                    log("info", "Loading " + sheetsToLoad.length + " data sheet(s)...")
                     sheetsToLoad.forEach(function (dataSheetName) {
-                        //console.time("- Loading sheet " + dataSheetName)
                         let sheetType = dataSheetName
                         dataStructure.sheets.config.tables.languageProjects.data[dataStructure.common.languages.defaultLanguageCode].forEach((project) => {
                             if (project.projectId == dataSheetName) {
@@ -1264,34 +1281,55 @@ export let DictionaryDataImport = function () {
                         })
 
                         loadSheetData(dataSheetName, extractor.getRawSheetData(dataSheetName), sheetType)
-                        //console.timeEnd("- Loading sheet " + dataSheetName)
                     })
-                    //console.timeEnd("Sheets loading")
 
-                    //console.time("Compile dictionary")
+                    await reportProgress("Compiling dictionary...")
                     let dictionary = compileDictionary()
-                    //console.timeEnd("Compile dictionary")
-                    breakLoop = true
+                    await reportProgress("Done")
                     dictionaryDataImport.loadedData = dictionary
                     dataReadyCallback(dictionary)
+                    return // finished successfully
                 }
-            })
+            }
 
             if (!foundSpreadsheet) {
-                console.error("Could not find an XSLX spreadsheet whose name ends with 'dictionary' in the dropped folder.")
+                log("critical", "Could not find an XLSX spreadsheet whose name ends with 'dictionary' in the dropped folder.")
+                reportError()
+            }
+
+            } catch (err) {
+                log("critical", "Compilation failed: " + (err.message || err))
+                console.error(err)
+                reportError()
             }
         },
 
     }
 
+    async function reportProgress(label) {
+        if (typeof dictionaryDataImport.onProgress === 'function') {
+            dictionaryDataImport.onProgress({ label })
+        }
+        // Yield to the browser so it can repaint the UI between milestones
+        await new Promise(resolve => setTimeout(resolve, 0))
+    }
+
+    function reportError() {
+        if (typeof dictionaryDataImport.onError === 'function') {
+            dictionaryDataImport.onError()
+        }
+    }
+
     let dictionaryDataImport = {
         loggedMessages: [],
         hasErrors: false,
+        onProgress: null,
+        onError: null,
 
         loadedData: {},
 
         dataFolderDropHandler: async function (e, dataReadyCallback) {
-            FilesystemOperations.dataFolderDropHandler(e, dataReadyCallback)
+            await FilesystemOperations.dataFolderDropHandler(e, dataReadyCallback)
         },
 
         getCompiledDictionary() {
