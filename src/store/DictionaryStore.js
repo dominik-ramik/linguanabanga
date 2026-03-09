@@ -152,7 +152,7 @@ export const useDictionaryStore = defineStore('dictionary', () => {
 
   //Update the URL when filters change
   watch(
-    () => [filter.text, filter.filters, filter.selectedProjects, filter.fuzzinessLevel, filter.mediaFilters],
+    () => [filter.text, filter.filters, filter.selectedProjects, filter.fuzzinessLevel, filter.mediaFilters, filter.searchMainEntryOnly],
     (newValue) => {
       if (route.name !== "search") {
         return
