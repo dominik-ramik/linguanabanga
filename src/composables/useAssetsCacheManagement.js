@@ -32,7 +32,6 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
         try {
             const rawProjects = JSON.parse(JSON.stringify(toRaw(selectedProjects.value) || []));
             const rawAssets = JSON.parse(JSON.stringify(toRaw(preloadableAssets.value) || []));
-            try { console.log('[SW-client] sendToSW', msgType, { projects: rawProjects.length, assets: rawAssets.length, autoOfflineReady: autoOfflineReady.value }); } catch (e) { }
             navigator.serviceWorker.ready.then((registration) => {
                 if (registration && registration.active) {
                     registration.active.postMessage({
@@ -56,7 +55,6 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
         [() => selectedProjects.value, () => preloadableAssets.value],
         ([projects, assets]) => {
             if (!assets?.length) return; // dictionary data not loaded yet
-            try { console.log('[SW-client] projects/assets watcher fired', { projects: Array.isArray(projects) ? projects.length : 0, assets: assets?.length || 0 }); } catch (e) { }
             sendToSW("NG_PROJECTS_CHANGED");
 
             if (currentlyCachedAssets.value == null) {
@@ -74,7 +72,6 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
     watch(
         () => autoOfflineReady.value,
         (newVal) => {
-            console.log('[SW-client] autoOfflineReady toggled ->', newVal);
             if (!preloadableAssets.value?.length) return;
             // Trigger full reconcile; the SW respects the autoOfflineReady flag
             // to decide whether to actually download or just promote/demote.
@@ -111,7 +108,6 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
     async function getCachedAssets() {
         if (!swAvailable) return;
         try {
-            try { console.log('[SW-client] requesting GET_CACHED_ASSETS'); } catch (e) { }
             navigator.serviceWorker.ready.then((registration) => {
                 if (registration && registration.active) {
                     registration.active.postMessage({
@@ -130,27 +126,22 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
         pollingAttempts++;
         if (pollingAttempts >= MAX_POLLING_ATTEMPTS) {
             clearInterval(initialAssetsLoadingInterval);
-            console.log('[SW-client] initialAssetsLoadingInterval timed out after', MAX_POLLING_ATTEMPTS, 'seconds');
             return;
         }
         getCachedAssets()
     }, 1000) : null
-    if (swAvailable) try { console.log('[SW-client] initialAssetsLoadingInterval started'); } catch (e) { }
-
+    
     // Listen for SW messages via navigator.serviceWorker (Clients API)
     // This is more reliable than MessagePort which can become stale on page refresh
     function handleSWMessage(event) {
         if (!event.data?.type) return;
-        try { console.log('[SW-client] received', event.data.type); } catch (e) { }
         switch (event.data.type) {
             case "CACHED_ASSETS":
                 clearInterval(initialAssetsLoadingInterval)
-                console.log('[SW-client] CACHED_ASSETS: SW returned', event.data.assets?.length, 'URLs, preloadableAssets available:', !!preloadableAssets.value?.length);
                 currentlyCachedAssets.value = event.data.assets.map(url =>
                     preloadableAssets.value?.find((asset => asset.path === url))
                 );
                 const matchedCount = currentlyCachedAssets.value.filter(Boolean).length;
-                console.log('[SW-client] CACHED_ASSETS: matched', matchedCount, 'of', event.data.assets?.length, 'URLs to preloadable assets');
                 if (matchedCount === 0 && event.data.assets?.length > 0) {
                     console.warn('[SW-client] CACHED_ASSETS: PATH MISMATCH — sample SW URLs:', event.data.assets.slice(0, 3), 'sample asset paths:', preloadableAssets.value?.slice(0, 3).map(a => a.path));
                 }
