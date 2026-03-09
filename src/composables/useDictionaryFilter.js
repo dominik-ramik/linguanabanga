@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, isRef, unref } from 'vue'
 import getDataByPath from '@/utils/GetDataByPath.js'
 import { useStorage } from '@vueuse/core'
 import { removeAccents } from "@/utils/removeAccents.js"
@@ -22,6 +22,7 @@ export function useDictionaryFilter(useDictionary) {
     const text = ref("")
     const filters = ref({})
     const table = ref(null)
+    const mediaFilters = ref({ audio: 'all', image: 'all' })
 
     watch(() => text.value,
         () => {
@@ -106,6 +107,41 @@ export function useDictionaryFilter(useDictionary) {
         ).map((layoutItem) => layoutItem.columnName)
     })
 
+    // Pre-compute media data paths from layout metadata to avoid recalculating inside the filter loop
+    const currentMediaLayoutPaths = computed(() => {
+        const paths = { audio: [], image: [] }
+        const layouts = dictionary.value.layouts
+        if (!layouts) {
+            console.debug('[MediaFilter] No layouts found in dictionary')
+            return paths
+        }
+        const currentTable = table.value
+        console.debug('[MediaFilter] Computing media layout paths for table:', currentTable, '| Total layouts:', layouts.length)
+        for (let i = 0; i < layouts.length; i++) {
+            const layout = layouts[i]
+            if (layout.tableType !== currentTable) continue
+            const viewTypes = layout.viewType
+            if (!viewTypes || !viewTypes.includes('search-result')) continue
+            const renderAs = layout.renderAs
+            if (renderAs === 'audio') {
+                paths.audio.push(layout.columnName)
+                console.debug('[MediaFilter]   Found audio layout:', layout.columnName)
+            } else if (renderAs === 'image' || renderAs === 'picture') {
+                paths.image.push(layout.columnName)
+                console.debug('[MediaFilter]   Found image layout:', layout.columnName, '(renderAs:', renderAs, ')')
+            }
+        }
+        console.debug('[MediaFilter] Result paths — audio:', paths.audio, 'image:', paths.image)
+        return paths
+    })
+
+    const hasMediaFiltersAvailable = computed(() => {
+        const p = currentMediaLayoutPaths.value
+        const available = p.audio.length > 0 || p.image.length > 0
+        console.debug('[MediaFilter] hasMediaFiltersAvailable:', available)
+        return available
+    })
+
     const filterResults = computed(() => {
         let passedFilter = activeFilters.value.length > 0 ? dataToSearch.value.filter((entry) => {
             let matchesAllFilters = true
@@ -139,6 +175,37 @@ export function useDictionaryFilter(useDictionary) {
         })
             : dataToSearch.value
 
+
+        // Apply media filters in a single pass when at least one is active
+        const mf = unref(mediaFilters)
+        const audioMode = mf.audio
+        const imageMode = mf.image
+        console.debug('[MediaFilter] filterResults — audioMode:', audioMode, 'imageMode:', imageMode, 'entries before media filter:', passedFilter.length)
+        if (audioMode !== 'all' || imageMode !== 'all') {
+            const audioPaths = currentMediaLayoutPaths.value.audio
+            const imagePaths = currentMediaLayoutPaths.value.image
+            const beforeCount = passedFilter.length
+            passedFilter = passedFilter.filter((entry) => {
+                if (audioMode !== 'all' && audioPaths.length > 0) {
+                    const hasAudio = audioPaths.some((path) => {
+                        const d = getDataByPath(entry, path)
+                        return d && d.length > 0 && d.some((v) => v != null && v !== '')
+                    })
+                    if (audioMode === 'with' && !hasAudio) return false
+                    if (audioMode === 'without' && hasAudio) return false
+                }
+                if (imageMode !== 'all' && imagePaths.length > 0) {
+                    const hasImage = imagePaths.some((path) => {
+                        const d = getDataByPath(entry, path)
+                        return d && d.length > 0 && d.some((v) => v != null && v !== '')
+                    })
+                    if (imageMode === 'with' && !hasImage) return false
+                    if (imageMode === 'without' && hasImage) return false
+                }
+                return true
+            })
+            console.debug('[MediaFilter] filterResults — entries after media filter:', passedFilter.length, '(removed', beforeCount - passedFilter.length, ')')
+        }
 
         if (dictionary.value.isReady) {
             let mainItem = dictionary.value?.sheetDataDetails.find((mainItemMeta) => table.value == mainItemMeta.tableType && mainItemMeta.type == "main")
@@ -283,6 +350,9 @@ export function useDictionaryFilter(useDictionary) {
         text,
         table,
         favorites,
+        mediaFilters,
+        currentMediaLayoutPaths,
+        hasMediaFiltersAvailable,
     }
 }
 
@@ -310,6 +380,17 @@ export function serializeFilter(filter) {
     else {
         const projects = useStorage('selected-projects', [], localStorage)
         filtersToSerialize["selectedProjects"] = projects.value
+    }
+
+    if (filter.mediaFilters) {
+        const mf = unref(filter.mediaFilters)
+        console.debug('[MediaFilter] serializeFilter — mediaFilters:', mf)
+        if (mf && (mf.audio !== 'all' || mf.image !== 'all')) {
+            filtersToSerialize["media"] = {
+                audio: mf.audio,
+                image: mf.image,
+            }
+        }
     }
 
     return JSON.stringify(filtersToSerialize)
@@ -348,5 +429,19 @@ export function deserializeFilter(json, filter) {
     }
     else {
         filter.fuzzinessLevel.value = DEFAULT_FUZZINESS_LEVEL
+    }
+
+    if (filter.mediaFilters) {
+        const newMf = (deserializedFilters.media && typeof deserializedFilters.media === 'object')
+            ? { audio: deserializedFilters.media.audio || 'all', image: deserializedFilters.media.image || 'all' }
+            : { audio: 'all', image: 'all' }
+        console.debug('[MediaFilter] deserializeFilter — applying:', newMf)
+        if (isRef(filter.mediaFilters)) {
+            filter.mediaFilters.value = newMf
+        } else {
+            // Pinia reactive proxy — mutate in place
+            filter.mediaFilters.audio = newMf.audio
+            filter.mediaFilters.image = newMf.image
+        }
     }
 }

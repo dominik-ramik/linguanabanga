@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { useDictionaryStore } from "@/store/DictionaryStore";
 import { micromark } from "micromark";
 import { useDisplay } from "vuetify";
+import MediaFilterToggle from "@/components/MediaFilterToggle.vue";
 
 const props = defineProps(["type"]);
 
@@ -92,6 +93,7 @@ const fuzzinessLevelExplanation = computed(() => {
 
 <template>
   <template v-if="props.type == 'search' && !mobile">
+    <MediaFilterToggle class="mb-3" />
     <DictionaryFilter
       v-for="filterInfo in dictionaryStore.filter.currentFilters"
       v-bind:key="filterInfo.name"
