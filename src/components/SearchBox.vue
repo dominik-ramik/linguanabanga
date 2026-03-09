@@ -16,14 +16,6 @@ const passedProps = defineProps([
 const emit = defineEmits(["toggle-filters", "input-focus", "input-typing"]);
 
 const fulltextSearch = ref(null);
-const stringSearchMode = ref("anywhere");
-
-// ADDED: shortTitle for compact mobile displays
-const searchModes = [
-  { title: "Search everywhere", value: "anywhere" },
-  { title: "Entry starting with", value: "begining" },
-  { title: "Anything starting with", value: "right" },
-];
 
 const loading = computed(
   () => !!dictionaryStore && !dictionaryStore.dictionary?.isReady,
@@ -67,37 +59,38 @@ watch(
 );
 
 const textFiledIsFocused = ref(false);
+
+const snackbar = ref(false);
+const snackbarText = ref("");
+
+function toggleSearchMainEntry() {
+  dictionaryStore.filter.searchMainEntryOnly = !dictionaryStore.filter.searchMainEntryOnly;
+  if (mobile && mobile.value) {
+    snackbarText.value = dictionaryStore.filter.searchMainEntryOnly ? 'Search switched to: Entry Starts With' : 'Search switched to: Search Everywhere';
+    snackbar.value = true;
+  }
+}
 </script>
 
 <template>
-  <div class="d-flex flex-nowrap justify-end w-100 mobile-dropdown">
-    <v-select
-      v-model="stringSearchMode"
-      :items="searchModes"
-      item-title="title"
-      item-value="value"
-      :density="mobile ? 'compact' : 'default'"
-      :variant="mobile ? 'plain' : 'text'"
-      hide-details
-      :class="mobile ? 'ma-0 pa-0' : 'mr-2'"
-      :style="
-        mobile ? 'max-width: 25vw;' : 'min-width: 200px; max-width: 220px;'
-      "
+  <div class="d-flex flex-row align-center mr-2">
+    <v-btn
+      v-if="dictionaryStore.filter.hasMainEntry"
+      :variant="mobile ? 'tonal' : 'text'"
+      density="compact"
+      :color="mobile ? 'primary' : ''" 
+      :title="dictionaryStore.filter.searchMainEntryOnly ? 'Entry Starts With' : 'Search Everywhere'"
+      @click="toggleSearchMainEntry"
+      class="mr-1 ml-1 d-flex align-center"
     >
-      <template v-slot:selection="{ item }">
-        <span
-          :style="
-            mobile
-              ? 'font-size: 0.70rem; max-height: 24px; margin: 0; padding: 0; line-height: 100%'
-              : ''
-          "
-        >
-          {{ item.raw.title }}
-        </span>
-      </template>
-    </v-select>
+      <v-icon class="mr-2">
+        {{ dictionaryStore.filter.searchMainEntryOnly ? 'mdi-tag-arrow-left' : 'mdi-text-search' }}
+      </v-icon>
+      <span v-if="!mobile" style="font-size: 0.85rem">{{ dictionaryStore.filter.searchMainEntryOnly ? 'Entry Starts With' : 'Search Everywhere' }}</span>
+    </v-btn>
 
-    <v-text-field
+    <div class="d-flex flex-nowrap justify-end w-100">
+      <v-text-field
       ref="fulltextSearch"
       :loading="loading"
       :variant="mobile ? 'flat' : 'solo'"
@@ -172,5 +165,11 @@ const textFiledIsFocused = ref(false);
         </div>
       </template>
     </v-text-field>
+    </div>
+
+    <v-snackbar v-model="snackbar" :timeout="2000" location="bottom">
+      {{ snackbarText }}
+    </v-snackbar>
+
   </div>
 </template>

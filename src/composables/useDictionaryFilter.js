@@ -20,9 +20,23 @@ export function useDictionaryFilter(useDictionary) {
     const favorites = useStorage('favorites', [], localStorage, { mergeDefaults: true })
 
     const text = ref("")
+    const searchMainEntryOnly = ref(false)
     const filters = ref({})
     const table = ref(null)
     const mediaFilters = ref({ audio: 'all', image: 'all' })
+
+    const hasMainEntry = computed(() => {
+        if (!dictionary.value?.isReady || !dictionary.value?.sheetDataDetails) return false;
+        return dictionary.value.sheetDataDetails.some(
+            (meta) => table.value === meta.tableType && meta.type === "main"
+        );
+    });
+
+    watch(hasMainEntry, (newVal) => {
+        if (!newVal) {
+            searchMainEntryOnly.value = false;
+        }
+    });
 
     watch(() => text.value,
         () => {
@@ -253,6 +267,20 @@ export function useDictionaryFilter(useDictionary) {
 
     })
 
+    const actualFuseSearchKeys = computed(() => {
+        // Restrict to "main" column if toggle is ON and a main entry exists
+        if (searchMainEntryOnly.value && hasMainEntry.value && dictionary.value?.isReady) {
+            let mainItem = dictionary.value.sheetDataDetails.find(
+                (meta) => table.value === meta.tableType && meta.type === "main"
+            );
+            if (mainItem) {
+                return [{ name: mainItem.columnName.replaceAll("#", ""), priority: 1 }];
+            }
+        }
+        // Fallback to standard configured keys
+        return fuseSearchKeys.value;
+    })
+
     const results = computed(() => {
 
         let allResults = []
@@ -320,7 +348,7 @@ export function useDictionaryFilter(useDictionary) {
                 useExtendedSearch: false,
                 ignoreLocation: true,
                 minMatchCharLength: minMatchCharLength,
-                keys: fuseSearchKeys.value,
+                keys: actualFuseSearchKeys.value,
                 getFn: ((obj, path) => {
                     let value = Fuse.config.getFn(obj, path)
                     if (Array.isArray(value)) {
@@ -334,7 +362,17 @@ export function useDictionaryFilter(useDictionary) {
 
             const fuse = new Fuse(filterResults.value, options)
 
+            // Base search
             allResults = fuse.search(removeAccents(text.value)).filter(result => result.score <= cutoffScore)
+
+            // Post-filter: Strict positional matching for main entries
+            if (searchMainEntryOnly.value && hasMainEntry.value) {
+                allResults = allResults.filter(result => {
+                    return result.matches.some(match =>
+                        match.indices.some(indexPair => indexPair[0] === 0)
+                    )
+                })
+            }
         }
 
         return allResults
@@ -350,6 +388,8 @@ export function useDictionaryFilter(useDictionary) {
         text,
         table,
         favorites,
+        searchMainEntryOnly,
+        hasMainEntry,
         mediaFilters,
         currentMediaLayoutPaths,
         hasMediaFiltersAvailable,
@@ -380,6 +420,10 @@ export function serializeFilter(filter) {
     else {
         const projects = useStorage('selected-projects', [], localStorage)
         filtersToSerialize["selectedProjects"] = projects.value
+    }
+
+    if (filter.searchMainEntryOnly && filter.searchMainEntryOnly.value) {
+        filtersToSerialize["mainOnly"] = "1"
     }
 
     if (filter.mediaFilters) {
@@ -430,6 +474,8 @@ export function deserializeFilter(json, filter) {
     else {
         filter.fuzzinessLevel.value = DEFAULT_FUZZINESS_LEVEL
     }
+
+    filter.searchMainEntryOnly.value = deserializedFilters.mainOnly === "1"
 
     if (filter.mediaFilters) {
         const newMf = (deserializedFilters.media && typeof deserializedFilters.media === 'object')
