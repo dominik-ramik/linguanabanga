@@ -456,7 +456,7 @@ const chipBgColorForLevel = (level, selected) => {
               <v-icon v-else color="primary" class="mr-2" size="small"
                 >mdi-checkbox-blank-circle-outline</v-icon
               >
-              <span class="font-weight-medium" style="font-size: 1.1em">
+              <span class="font-weight-bold" style="font-size: 1.1em">
                 {{ item.dictionaryLabel }}
               </span>
             </div>
