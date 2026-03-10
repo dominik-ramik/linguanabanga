@@ -318,8 +318,8 @@ export let DictionaryDataImport = function () {
             let foundFile = textFiles.find((file) => file.name.endsWith(value))
 
             if (foundFile === undefined) {
-                //TODO put this into LOG
-                throw new Error("Linked file not found: " + value)
+                log("error", "Linked file not found: " + value)
+                return ""
             }
             else {
                 value = foundFile.content
@@ -343,7 +343,6 @@ export let DictionaryDataImport = function () {
             }
             else {
                 log("warning", "Missing file: " + path)
-                console.log("Missing file", path)
             }
 
             preloadableAssets.push({ path: path, size: size, tableName: [], lang: [] })
