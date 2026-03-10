@@ -259,6 +259,27 @@ function getProjectNeedsMB(projectId) {
   return Math.ceil(totalBytes / 1024 / 1024);
 }
 
+// Total entries across all projects (sum is valid since entries are unique per project)
+const totalEntries = computed(() =>
+  allProjects.value.reduce((sum, p) => sum + getProjectEntriesCount(p.projectId), 0)
+);
+
+// Total unique audio assets derived from preloadableAssets (shared assets counted only once)
+const totalAudioAssets = computed(() => {
+  const assets = dictionaryStore.dictionary.preloadableAssets || [];
+  return assets.filter((asset) =>
+    audioFilesExtensions.some((ext) => asset.path.toLowerCase().endsWith(ext))
+  ).length;
+});
+
+// Total unique image assets derived from preloadableAssets (shared assets counted only once)
+const totalImageAssets = computed(() => {
+  const assets = dictionaryStore.dictionary.preloadableAssets || [];
+  return assets.filter((asset) =>
+    imageFilesExtensions.some((ext) => asset.path.toLowerCase().endsWith(ext))
+  ).length;
+});
+
 // --- CHIP COLOR LOGIC ---
 const chipBgColorForLevel = (level, selected) => {
   // Use HSL for color gradation: primary hue, increasing lightness for higher levels
@@ -473,6 +494,16 @@ const chipBgColorForLevel = (level, selected) => {
           </v-card>
         </v-col>
       </v-row>
+
+      <!-- Grand totals across all projects -->
+      <div class="d-flex align-center mt-6 text-body-2 text-medium-emphasis" style="gap: 8px; flex-wrap: wrap">
+        <span class="font-weight-medium">{{ t("languageSelectorView.total") }}:</span>
+        <span>{{ formatNumberWithSpaces(totalEntries) }} {{ t("languageSelectorView.entries") }}</span>
+        <v-icon size="14" style="opacity: 0.7">mdi-volume-high</v-icon>
+        <span>{{ formatNumberWithSpaces(totalAudioAssets) }}</span>
+        <v-icon size="14" style="opacity: 0.7">mdi-image</v-icon>
+        <span>{{ formatNumberWithSpaces(totalImageAssets) }}</span>
+      </div>
 
       <!-- Modal dialog for select more dictionaries -->
       <v-dialog v-model="showSelectMoreDialog" max-width="400">
