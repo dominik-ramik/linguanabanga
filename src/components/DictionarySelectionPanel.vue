@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import { i18n } from "@/i18n";
 import { useRoute } from "vue-router";
 import { useStorage } from "@vueuse/core";
+import { audioFilesExtensions, imageFilesExtensions } from "@/utils/fileExtensions.js";
 
 const { t } = useI18n();
 const dictionaryStore = useDictionaryStore();
@@ -215,6 +216,32 @@ onUnmounted(() => {
   // On search route: do nothing — store should only be updated via confirmSelection()
 });
 
+// Helper to count audio assets for a given projectId
+function getProjectAudioCount(projectId) {
+  const lang = i18n.global.locale.value;
+  const assets = dictionaryStore.dictionary.preloadableAssets || [];
+  return assets.filter(
+    (asset) =>
+      asset.refs?.[lang]?.includes(projectId) &&
+      audioFilesExtensions.some((ext) =>
+        asset.path.toLowerCase().endsWith(ext)
+      )
+  ).length;
+}
+
+// Helper to count image assets for a given projectId
+function getProjectImageCount(projectId) {
+  const lang = i18n.global.locale.value;
+  const assets = dictionaryStore.dictionary.preloadableAssets || [];
+  return assets.filter(
+    (asset) =>
+      asset.refs?.[lang]?.includes(projectId) &&
+      imageFilesExtensions.some((ext) =>
+        asset.path.toLowerCase().endsWith(ext)
+      )
+  ).length;
+}
+
 // Helper to calculate needed MB for a given projectId
 function getProjectNeedsMB(projectId) {
   const lang = i18n.global.locale.value;
@@ -423,10 +450,18 @@ const chipBgColorForLevel = (level, selected) => {
                 class="mr-1"
                 style="pointer-events: none"
               >
-                {{ formatNumberWithSpaces(getProjectEntriesCount(item.id)) }}
-                {{ t("languageSelectorView.entries") }},
                 {{ getProjectNeedsMB(item.id) }} MB
               </v-chip>
+              <div
+                class="mt-1 ml-1 d-flex align-center"
+                style="font-size: 0.75em; opacity: 0.7; gap: 4px"
+              >
+                <span>{{ formatNumberWithSpaces(getProjectEntriesCount(item.id)) }} {{ t("languageSelectorView.entries") }}</span>
+                <v-icon size="12" style="opacity: inherit">mdi-volume-high</v-icon>
+                <span>{{ formatNumberWithSpaces(getProjectAudioCount(item.id)) }}</span>
+                <v-icon size="12" style="opacity: inherit">mdi-image</v-icon>
+                <span>{{ formatNumberWithSpaces(getProjectImageCount(item.id)) }}</span>
+              </div>
               <div
                 v-if="item.placement"
                 class="mt-3 ml-1"
