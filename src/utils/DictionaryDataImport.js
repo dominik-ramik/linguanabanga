@@ -22,14 +22,6 @@ export let DictionaryDataImport = function () {
     let preloadableAssets = []
 
     function compileDictionary() {
-        // Ensure logs are cleared at the start of each compilation
-        try {
-            dictionaryDataImport.loggedMessages = []
-            dictionaryDataImport.hasErrors = false
-        } catch (e) {
-            // dictionaryDataImport may not be initialized yet; ignore
-        }
-
         log("info", "Compiling dictionary...")
         console.log("Compiling")
 
@@ -813,7 +805,6 @@ export let DictionaryDataImport = function () {
 
                             if (possibleFiles.length == 0) {
                                 log("warning", "Empty image folder: " + folderOrFileName)
-                                console.error("Empty image folder:", folderOrFileName)
                             }
 
                             for (const file of possibleFiles) {
