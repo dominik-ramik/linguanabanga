@@ -47,7 +47,7 @@ function getProjectEntriesCount(projectId) {
 
 function formatNumberWithSpaces(n) {
   if (n === undefined || n === null) return "0";
-  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " "); //nbsp as thousands separator
 }
 
 // --- CHIP FILTER LOGIC ---
