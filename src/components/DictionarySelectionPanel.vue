@@ -429,7 +429,7 @@ const chipBgColorForLevel = (level, selected) => {
           sm="6"
           md="4"
           lg="3"
-          xl="2"
+          xl="3"
         >
           <v-card
             :elevation="localSelected.includes(item.id) ? 8 : 2"
