@@ -9,6 +9,19 @@ const dictionaryStore = useDictionaryStore();
 const router = useRouter();
 const route = useRoute();
 
+// Helper function to check if a tableType has data in any currently selected projects
+const hasDataForTableType = (tableType) => {
+  const tables = dictionaryStore.dictionary.tables || [];
+  const selectedProjects = dictionaryStore.filter.selectedProjects || [];
+  
+  return tables.some((table) => 
+    table.meta.tableType === tableType &&
+    (table.meta.project === undefined || selectedProjects.includes(table.meta.project)) &&
+    Array.isArray(table.data) &&
+    table.data.length > 0
+  );
+};
+
 //list of route names to include, SEPARATOR inserts a divider
 const menu = computed(() => {
   const baseMenu = [
@@ -41,15 +54,17 @@ const menu = computed(() => {
     { title: "mainMenu.settings", pathName: "settings", icon: "mdi-cog" },
   ];
 
-  let menu = (dictionaryStore.dictionary.menu || []).map((menuItem) => {
-    return {
-      title: menuItem.title,
-      pathName: "search",
-      path: "search/" + menuItem.tableType,
-      tableToSearch: menuItem.tableType,
-      icon: menuItem.icon,
-    };
-  });
+  let menu = (dictionaryStore.dictionary.menu || [])
+    .filter((menuItem) => hasDataForTableType(menuItem.tableType))
+    .map((menuItem) => {
+      return {
+        title: menuItem.title,
+        pathName: "search",
+        path: "search/" + menuItem.tableType,
+        tableToSearch: menuItem.tableType,
+        icon: menuItem.icon,
+      };
+    });
   return [...menu, ...baseMenu];
 });
 
