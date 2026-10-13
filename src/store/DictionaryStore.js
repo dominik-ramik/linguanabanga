@@ -15,8 +15,8 @@ export const useDictionaryStore = defineStore('dictionary', () => {
   const router = useRouter();
   const route = useRoute();
 
-  const dictionary = storeToRefs(useDictionary("/data/data.json", i18n.global.locale))
-  const filter = storeToRefs(useDictionaryFilter(dictionary))
+  const dictionary = useDictionary("/data/data.json", i18n.global.locale)
+  const filter = useDictionaryFilter(dictionary)
 
   const cache = useAssetsCacheManagement(i18n.global.locale, filter.selectedProjects, dictionary.preloadableAssets)
 

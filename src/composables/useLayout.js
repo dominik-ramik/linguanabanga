@@ -1,4 +1,4 @@
-import { toRef } from 'vue'
+import { toRef, unref } from 'vue'
 
 export function useLayout(dictionaryMaybeRef, tableTypeMaybeRef, viewType) {
     //create a structure with layouts categorized in placement and in each placement grouped by individual layout chains
@@ -59,7 +59,7 @@ export function useLayout(dictionaryMaybeRef, tableTypeMaybeRef, viewType) {
                                 name: pathSegment,
                                 fullPath: layout.columnName,
                                 fullPathHashless: layout.columnName.replaceAll("#", ""),
-                                sheetDataDetails: dictionary.value.sheetDataDetails.find((detail) => detail.columnName == layout.columnName),
+                                sheetDataDetails: unref(dictionary.value.sheetDataDetails).find((detail) => detail.columnName == layout.columnName),
                                 meta: layout,
                             })
                         }
@@ -71,7 +71,7 @@ export function useLayout(dictionaryMaybeRef, tableTypeMaybeRef, viewType) {
                                 properties: [],
                                 fullPath: layout.columnName,
                                 fullPathHashless: layout.columnName.replaceAll("#", ""),
-                                sheetDataDetails: dictionary.value.sheetDataDetails.find((detail) => detail.columnName == layout.columnName),
+                                sheetDataDetails: unref(dictionary.value.sheetDataDetails).find((detail) => detail.columnName == layout.columnName),
                                 meta: layout,
                             }
                         }
@@ -86,7 +86,7 @@ export function useLayout(dictionaryMaybeRef, tableTypeMaybeRef, viewType) {
                                 name: pathSegment,
                                 fullPath: layout.columnName,
                                 fullPathHashless: layout.columnName.replaceAll("#", ""),
-                                sheetDataDetails: dictionary.value.sheetDataDetails.find((detail) => detail.columnName == layout.columnName),
+                                sheetDataDetails: unref(dictionary.value.sheetDataDetails).find((detail) => detail.columnName == layout.columnName),
                                 meta: layout,
                             })
                         }
@@ -117,7 +117,7 @@ export function useLayout(dictionaryMaybeRef, tableTypeMaybeRef, viewType) {
         let currentColumnName = columnName
 
         do {
-            const currentDetail = dictionary.value.sheetDataDetails.find((detail) => detail.columnName == currentColumnName)
+            const currentDetail = unref(dictionary.value.sheetDataDetails).find((detail) => detail.columnName == currentColumnName)
             if (currentDetail && currentDetail.referenceToTableType) {
                 return currentDetail
             }

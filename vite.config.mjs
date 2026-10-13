@@ -118,6 +118,12 @@ export default defineConfig({
       '.vue',
     ],
   },
+  css: {
+    preprocessorOptions: {
+      sass: { api: 'modern-compiler' },
+      scss: { api: 'modern-compiler' },
+    },
+  },
   server: {
     port: 3000,
     host: true

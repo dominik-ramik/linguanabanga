@@ -14,6 +14,9 @@ export function useDictionaryFilter(useDictionary) {
 
     const dictionary = ref(useDictionary)
 
+    // may be a raw ref or already unwrapped depending on how the dictionary was wrapped
+    const sheetDataDetails = () => unref(dictionary.value?.sheetDataDetails)
+
     const selectedProjects = selectedProjectsGlobal
 
     //{ name: "name", useInLearning: false, tableType: "tt", url: "http://localhost..." }
@@ -26,8 +29,8 @@ export function useDictionaryFilter(useDictionary) {
     const mediaFilters = ref({ audio: 'all', image: 'all' })
 
     const hasMainEntry = computed(() => {
-        if (!dictionary.value?.isReady || !dictionary.value?.sheetDataDetails) return false;
-        return dictionary.value.sheetDataDetails.some(
+        if (!dictionary.value?.isReady || !sheetDataDetails()) return false;
+        return sheetDataDetails().some(
             (meta) => table.value === meta.tableType && meta.type === "main"
         );
     });
@@ -54,15 +57,15 @@ export function useDictionaryFilter(useDictionary) {
     //All filters existing in the dictionary, tableType property is used to distinguish which filter is pertinent to which tableType
     const allPossibleFilters = computed(() => {
         const filterInfos = []
-        if (!dictionary.value.sheetDataDetails) {
+        if (!sheetDataDetails()) {
             return filterInfos
         }
-        for (const meta of dictionary.value.sheetDataDetails) {
+        for (const meta of sheetDataDetails()) {
             if (meta.filterTitle && meta.filterTitle != "") {
                 let possibleValues = []
                 if (meta.type == "ref-list") {
                     dictionary.value.tables.find((table) => table.meta.tableType == meta.referenceToTableType).data.map((item) => {
-                        let title = getMainItem(dictionary.value.sheetDataDetails, meta.referenceToTableType, item)
+                        let title = getMainItem(sheetDataDetails(), meta.referenceToTableType, item)
                         if (Array.isArray(title)) {
                             title = title.join(" / ")
                         }
@@ -222,7 +225,7 @@ export function useDictionaryFilter(useDictionary) {
         }
 
         if (dictionary.value.isReady) {
-            let mainItem = dictionary.value?.sheetDataDetails.find((mainItemMeta) => table.value == mainItemMeta.tableType && mainItemMeta.type == "main")
+            let mainItem = sheetDataDetails().find((mainItemMeta) => table.value == mainItemMeta.tableType && mainItemMeta.type == "main")
             let mainPath = mainItem?.columnName.replaceAll("#", "")
 
             passedFilter.sort((a, b) => {
@@ -245,8 +248,8 @@ export function useDictionaryFilter(useDictionary) {
         //we need to take into account the current layout so we don't search for values that are not displayed
         let pathsToMatch = []
         if (dictionary.value && dictionary.value.isReady) {
-            for (const infoKey of Object.keys(dictionary.value?.sheetDataDetails)) {
-                const info = dictionary.value.sheetDataDetails[infoKey]
+            for (const infoKey of Object.keys(sheetDataDetails())) {
+                const info = sheetDataDetails()[infoKey]
                 if (info.tableType == table.value) {
                     if (info.searchPriority !== "" && info.searchPriority > 0) {
                         if (currentFlatLayouts.value.includes(info.columnName)) {
@@ -270,7 +273,7 @@ export function useDictionaryFilter(useDictionary) {
     const actualFuseSearchKeys = computed(() => {
         // Restrict to "main" column if toggle is ON and a main entry exists
         if (searchMainEntryOnly.value && hasMainEntry.value && dictionary.value?.isReady) {
-            let mainItem = dictionary.value.sheetDataDetails.find(
+            let mainItem = sheetDataDetails().find(
                 (meta) => table.value === meta.tableType && meta.type === "main"
             );
             if (mainItem) {
@@ -292,8 +295,8 @@ export function useDictionaryFilter(useDictionary) {
             })
 
             allResults = allResults.sort((a, b) => {
-                let mainA = getMainItem(dictionary.value.sheetDataDetails, table.value, a.item)[0]
-                let mainB = getMainItem(dictionary.value.sheetDataDetails, table.value, b.item)[0]
+                let mainA = getMainItem(sheetDataDetails(), table.value, a.item)[0]
+                let mainB = getMainItem(sheetDataDetails(), table.value, b.item)[0]
 
                 // items with undefined main item will get shown at the end of the list
                 if (mainA === undefined) {
