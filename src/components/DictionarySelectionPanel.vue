@@ -81,6 +81,22 @@ const menuPathLevels = computed(() =>
   extractMenuPathSegments(allProjects.value),
 );
 const selectedChip = ref("All");
+function projectSegments(proj) {
+  return (proj.menuPath || "")
+    .split("/")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+// Level of the selected chip (-1 when "All" or nothing is selected)
+const selectedLevel = computed(() => {
+  if (!selectedChip.value || selectedChip.value === "All") return -1;
+  let level = -1;
+  allProjects.value.forEach((proj) => {
+    const idx = projectSegments(proj).indexOf(selectedChip.value);
+    if (idx !== -1 && (level === -1 || idx < level)) level = idx;
+  });
+  return level;
+});
 const filterChips = computed(() => {
   const chips = [
     {
@@ -91,15 +107,14 @@ const filterChips = computed(() => {
     },
   ];
   menuPathLevels.value.forEach((levelArr, idx) => {
+    // Chips on levels below the selected chip only consider matching projects
+    const deeper = selectedLevel.value !== -1 && idx > selectedLevel.value;
+    const pool = deeper ? filteredProjects.value : allProjects.value;
     levelArr.forEach((seg) => {
-      const count = allProjects.value.filter((proj) => {
-        if (!proj.menuPath) return false;
-        const segments = proj.menuPath
-          .split("/")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        return segments[idx] === seg;
-      }).length;
+      const count = pool.filter(
+        (proj) => proj.menuPath && projectSegments(proj)[idx] === seg,
+      ).length;
+      if (deeper && count === 0) return;
       chips.push({ label: seg, value: seg, level: idx, count });
     });
   });
