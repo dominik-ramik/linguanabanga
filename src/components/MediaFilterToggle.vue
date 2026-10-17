@@ -38,7 +38,7 @@ const imageOptions = [
 <template>
   <div
     v-if="hasMediaFiltersAvailable"
-    class="d-flex flex-column gap-2"
+    class="d-flex align-center flex-nowrap ga-2"
   >
     <MediaTypeToggle
       v-if="currentMediaLayoutPaths?.audio?.length > 0"
@@ -58,3 +58,10 @@ const imageOptions = [
     />
   </div>
 </template>
+
+<style scoped>
+.media-type-select {
+  min-width: 0;
+  flex: 1 1 0;
+}
+</style>

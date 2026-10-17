@@ -31,26 +31,18 @@ const emit = defineEmits(["update:modelValue"]);
 </script>
 
 <template>
-  <div class="d-flex align-center gap-2" :aria-label="label || undefined">
-    <v-btn-toggle
-      :model-value="props.modelValue"
-      @update:model-value="emit('update:modelValue', $event)"
-      mandatory
-      density="compact"
-      variant="outlined"
-      color="primary"
-      class="mb-2"
-      style="margin-left: auto; margin-right: auto;"
-    >
-      <v-btn
-        v-for="(opt, index) in props.options "
-        :key="opt.value"
-        :value="opt.value"
-        size="small"
-        :prepend-icon="index == 0 ? props.icon : undefined"
-      >
-        {{ opt.title }}
-      </v-btn>
-    </v-btn-toggle>
-  </div>
+  <v-select
+    :model-value="props.modelValue"
+    @update:model-value="emit('update:modelValue', $event)"
+    :items="props.options"
+    item-title="title"
+    item-value="value"
+    :prepend-inner-icon="props.icon"
+    :aria-label="label || undefined"
+    density="compact"
+    variant="outlined"
+    color="primary"
+    hide-details
+    class="media-type-select"
+  />
 </template>
