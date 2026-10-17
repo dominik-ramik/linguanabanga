@@ -166,6 +166,10 @@ const rows = computed(() => {
     .sort((a, b) => a.dictionaryLabel.localeCompare(b.dictionaryLabel));
 });
 
+const allVisibleSelected = computed(
+  () => rows.value.length > 0 && rows.value.every((row) => row.selected),
+);
+
 const noSelection = computed(() => !localSelected.value?.length);
 
 // Modal dialog state for "select more dictionaries?"
@@ -188,6 +192,26 @@ function onToggleSelection(projectId) {
     if (!isSearchRoute.value) {
       dictionaryStore.filter.selectedProjects = [...localSelected.value];
     }
+  }
+}
+
+function toggleVisibleSelection() {
+  const visibleProjectIds = rows.value.map((row) => row.id);
+  if (allVisibleSelected.value) {
+    const visibleIds = new Set(visibleProjectIds);
+    localSelected.value = localSelected.value.filter((id) => !visibleIds.has(id));
+    return;
+  }
+
+  const projectsToAdd = visibleProjectIds.filter(
+    (id) => !localSelected.value.includes(id),
+  );
+  if (projectsToAdd.length === 0) return;
+
+  localSelected.value = [...localSelected.value, ...projectsToAdd];
+  if (isSearchRoute.value) {
+    pendingSelection.value = projectsToAdd[0];
+    showSelectMoreDialog.value = true;
   }
 }
 
@@ -432,6 +456,27 @@ const chipBgColorForLevel = (level, selected) => {
       <v-alert v-if="noSelection" type="info" variant="tonal" class="mb-4">
         {{ $t("languageSelectorView.hintNoSelection") }}
       </v-alert>
+
+      <div class="d-flex justify-end mb-2">
+        <v-btn
+          color="primary"
+          variant="tonal"
+          size="small"
+          :prepend-icon="
+            allVisibleSelected ? 'mdi-close-circle-outline' : 'mdi-check-all'
+          "
+          :disabled="rows.length === 0"
+          @click="toggleVisibleSelection"
+        >
+          {{
+            t(
+              allVisibleSelected
+                ? "languageSelectorView.unselectAllShown"
+                : "languageSelectorView.selectAllShown",
+            )
+          }}
+        </v-btn>
+      </div>
 
       <!-- Card/list UI for dictionaries -->
       <v-row dense>

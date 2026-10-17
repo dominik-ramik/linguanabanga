@@ -31,6 +31,8 @@
     "selectedDictionaries": "Selected languages:",
     "all": "Everywhere",
     "filterByMenuPath": "Show languages from:",
+    "selectAllShown": "Select all shown",
+    "unselectAllShown": "Unselect all shown",
     "selectMoreTitle": "Select more languages?",
     "selectMoreText": "Do you want to select more languages?",
     "selectMoreYes": "Yes",

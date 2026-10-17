@@ -31,6 +31,8 @@
     "selectedDictionaries": "Dictionnaires sélectionnés :",
     "all": "Partout",
     "filterByMenuPath": "Afficher les langues de :",
+    "selectAllShown": "Tout sélectionner",
+    "unselectAllShown": "Tout désélectionner",
     "selectMoreTitle": "Sélectionner d'autres dictionnaires ?",
     "selectMoreText": "Voulez-vous sélectionner d'autres dictionnaires ?",
     "selectMoreYes": "Oui",

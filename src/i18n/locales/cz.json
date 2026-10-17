@@ -31,6 +31,8 @@
     "selectedDictionaries": "Vybrané slovníky:",
     "all": "Všude",
     "filterByMenuPath": "Zobrazit jazyky z:",
+    "selectAllShown": "Vybrat všechny zobrazené",
+    "unselectAllShown": "Zrušit výběr zobrazených",
     "selectMoreTitle": "Vybrat více jazyků?",
     "selectMoreText": "Chcete vybrat více jazyků?",
     "selectMoreYes": "Ano",
