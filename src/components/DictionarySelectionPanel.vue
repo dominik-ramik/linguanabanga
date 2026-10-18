@@ -80,23 +80,54 @@ const allProjects = computed(() => {
 const menuPathLevels = computed(() =>
   extractMenuPathSegments(allProjects.value),
 );
-const selectedChip = ref("All");
 function projectSegments(proj) {
   return (proj.menuPath || "")
     .split("/")
     .map((s) => s.trim())
     .filter(Boolean);
 }
-// Level of the selected chip (-1 when "All" or nothing is selected)
-const selectedLevel = computed(() => {
-  if (!selectedChip.value || selectedChip.value === "All") return -1;
-  let level = -1;
-  allProjects.value.forEach((proj) => {
-    const idx = projectSegments(proj).indexOf(selectedChip.value);
-    if (idx !== -1 && (level === -1 || idx < level)) level = idx;
-  });
-  return level;
+function matchesPrefix(proj, prefix) {
+  const segs = projectSegments(proj);
+  return prefix.every((p, i) => segs[i] === p);
+}
+// Selected chips, one per level starting at the top level
+const selectedPath = ref([]);
+// v-model for the chip groups: the deepest selected chip
+const selectedChip = computed({
+  get: () =>
+    selectedPath.value.length
+      ? selectedPath.value[selectedPath.value.length - 1]
+      : "All",
+  set: (val) => {
+    if (val === undefined || val === null) {
+      // Clicking the selected chip again steps back to its parent
+      selectedPath.value = selectedPath.value.slice(0, -1);
+      return;
+    }
+    if (val === "All") {
+      selectedPath.value = [];
+      return;
+    }
+    const current = selectedPath.value;
+    let best = null;
+    for (const proj of allProjects.value) {
+      const segs = projectSegments(proj);
+      const level = segs.indexOf(val);
+      if (level === -1) continue;
+      const compatible = current.slice(0, level).every((p, i) => segs[i] === p);
+      if (compatible) {
+        best = segs.slice(0, level + 1);
+        break;
+      }
+      if (!best) best = segs.slice(0, level + 1);
+    }
+    if (best) selectedPath.value = best;
+  },
 });
+const isChipSelected = (chip) =>
+  chip.level === -1
+    ? selectedPath.value.length === 0
+    : selectedPath.value[chip.level] === chip.value;
 const filterChips = computed(() => {
   const chips = [
     {
@@ -107,14 +138,18 @@ const filterChips = computed(() => {
     },
   ];
   menuPathLevels.value.forEach((levelArr, idx) => {
-    // Chips on levels below the selected chip only consider matching projects
-    const deeper = selectedLevel.value !== -1 && idx > selectedLevel.value;
-    const pool = deeper ? filteredProjects.value : allProjects.value;
+    const path = selectedPath.value;
+    // Only projects under the selected parents count; levels above the
+    // deepest selection show just the selected chip
+    const pool = allProjects.value.filter((proj) =>
+      matchesPrefix(proj, path.slice(0, idx)),
+    );
     levelArr.forEach((seg) => {
+      if (idx < path.length - 1 && seg !== path[idx]) return;
       const count = pool.filter(
-        (proj) => proj.menuPath && projectSegments(proj)[idx] === seg,
+        (proj) => projectSegments(proj)[idx] === seg,
       ).length;
-      if (deeper && count === 0) return;
+      if (count === 0) return;
       chips.push({ label: seg, value: seg, level: idx, count });
     });
   });
@@ -135,12 +170,10 @@ const leafChips = computed(() => {
   return filterChips.value.filter((chip) => chip.level === lastMenuLevel.value);
 });
 const filteredProjects = computed(() => {
-  if (selectedChip.value === "All") return allProjects.value;
-  return allProjects.value.filter((proj) => {
-    if (!proj.menuPath) return false;
-    const segments = proj.menuPath.split("/").map((s) => s.trim());
-    return segments.includes(selectedChip.value);
-  });
+  if (!selectedPath.value.length) return allProjects.value;
+  return allProjects.value.filter((proj) =>
+    matchesPrefix(proj, selectedPath.value),
+  );
 });
 // Local copy of selected dictionaries
 const localSelected = ref(
@@ -418,9 +451,7 @@ const chipBgColorForLevel = (level, selected) => {
               v-for="chip in topLevelChips"
               :key="chip.value + '-' + chip.level"
               :value="chip.value"
-              :style="
-                chipBgColorForLevel(chip.level, selectedChip === chip.value)
-              "
+              :style="chipBgColorForLevel(chip.level, isChipSelected(chip))"
               label
               size="small"
               class="ma-1"
@@ -440,9 +471,7 @@ const chipBgColorForLevel = (level, selected) => {
               v-for="chip in leafChips"
               :key="chip.value + '-' + chip.level"
               :value="chip.value"
-              :style="
-                chipBgColorForLevel(chip.level, selectedChip === chip.value)
-              "
+              :style="chipBgColorForLevel(chip.level, isChipSelected(chip))"
               label
               size="small"
               class="ma-1"
