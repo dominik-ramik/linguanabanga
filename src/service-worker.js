@@ -733,7 +733,6 @@ self.addEventListener('message', function (message) {
     // an update was waiting (see useServiceWorkerUpdate.js). The page reloads when it sees the controllerchange.
     if (msg.type === 'SKIP_WAITING') {
         self.skipWaiting();
-        window.location.reload();   // the page is still controlled by the old worker, so reload it to get the new one
         return;
     }
 
