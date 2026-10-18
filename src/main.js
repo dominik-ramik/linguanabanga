@@ -12,6 +12,7 @@ import { i18n } from '@/i18n'
 
 // Components
 import App from './App.vue'
+import { registerServiceWorker, applyWaitingUpdateOnStartup } from '@/composables/useServiceWorkerUpdate.js'
 
 // Composables
 import { createApp } from 'vue'
@@ -59,13 +60,28 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-app.use(i18n).mount('#app')
+let mounted = false
+function mountApp() {
+  if (mounted) return
+  mounted = true
+  app.use(i18n).mount('#app')
+}
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  // An update that finished installing while the app was open (or before this load) is applied now, BEFORE the app
+  // mounts: the waiting worker takes over and the page reloads straight into the new version. If nothing is waiting
+  // this resolves immediately and the app starts as usual.
+  applyWaitingUpdateOnStartup().then((reloading) => { if (!reloading) mountApp() }).catch(mountApp)
+  setTimeout(mountApp, 6000) // failsafe, never leave a blank page
+} else {
+  mountApp()
+}
 
 // Register sevice worker
 if (import.meta.env.PROD) {
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+            registerServiceWorker() // registers, watches for new versions and checks for them periodically (see useServiceWorkerUpdate.js)
             navigator.serviceWorker.ready
                 .then((registration) => {
                     // Open communication channel

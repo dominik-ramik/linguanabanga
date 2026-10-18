@@ -31,15 +31,15 @@
     "selectedDictionaries": "Selected languages:",
     "all": "Everywhere",
     "filterByMenuPath": "Show languages from:",
-    "selectAllShown": "Select all shown",
-    "unselectAllShown": "Unselect all shown",
     "selectMoreTitle": "Select more languages?",
     "selectMoreText": "Do you want to select more languages?",
     "selectMoreYes": "Yes",
     "selectMoreNo": "No",
     "confirmSelection": "Confirm selected languages",
     "total": "Total",
-    "entries": "entries"
+    "entries": "entries",    
+    "selectAllShown": "Select all shown",
+    "unselectAllShown": "Unselect all shown"
   },
   "projectSelectionDialog": {
     "selectDictionaries": "Select languages",
@@ -55,5 +55,11 @@
   "ui": {
     "clearAll": "Clear all",
     "applyAndClose": "Apply & Close"
+  },
+  "update": {
+    "available": "A new version of the app is available.",
+    "reload": "Reload",
+    "later": "Later",
+    "applying": "Updating…"
   }
 }

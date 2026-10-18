@@ -729,6 +729,14 @@ self.addEventListener('message', function (message) {
         return;
     }
 
+    // The page asks the waiting worker to take over: the user pressed "Reload" in the update prompt, or a page was loaded while
+    // an update was waiting (see useServiceWorkerUpdate.js). The page reloads when it sees the controllerchange.
+    if (msg.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+        window.location.reload();   // the page is still controlled by the old worker, so reload it to get the new one
+        return;
+    }
+
     // Requests for list of cached assets
     if (msg.type === "GET_CACHED_ASSETS") {
         message.waitUntil(

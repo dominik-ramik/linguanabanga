@@ -10,6 +10,7 @@ import { inferLocale } from "@/i18n";
 import { useI18n } from "vue-i18n";
 import DictionaryFilter from "@/components/DictionaryFilter.vue";
 import MediaFilterToggle from "@/components/MediaFilterToggle.vue";
+import UpdateSnackbar from "@/components/UpdateSnackbar.vue";
 
 import logoLightTheme from "@/assets/logo.svg";
 import logoDarkTheme from "@/assets/logo_dark.svg";
@@ -446,6 +447,8 @@ function removeFilterGroup(filter) {
     >
       <ActionsPanel :type="route.name" />
     </v-navigation-drawer>
+
+    <UpdateSnackbar />
   </v-app>
 </template>
 

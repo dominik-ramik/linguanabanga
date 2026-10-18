@@ -31,15 +31,15 @@
     "selectedDictionaries": "Dictionnaires sélectionnés :",
     "all": "Partout",
     "filterByMenuPath": "Afficher les langues de :",
-    "selectAllShown": "Tout sélectionner",
-    "unselectAllShown": "Tout désélectionner",
     "selectMoreTitle": "Sélectionner d'autres dictionnaires ?",
     "selectMoreText": "Voulez-vous sélectionner d'autres dictionnaires ?",
     "selectMoreYes": "Oui",
     "selectMoreNo": "Non",
     "confirmSelection": "Confirmer les langues sélectionnées",
     "total": "Total",
-    "entries": "entrées"
+    "entries": "entrées",    
+    "selectAllShown": "Sélectionner tous les affichés",
+    "unselectAllShown": "Désélectionner tous les affichés"
   }
   ,
   "projectSelectionDialog": {
@@ -55,5 +55,11 @@
   "ui": {
     "clearAll": "Supprimer tout",
     "applyAndClose": "Appliquer et fermer"
+  },
+  "update": {
+    "available": "Une nouvelle version de l'application est disponible.",
+    "reload": "Mettre à jour",
+    "later": "Plus tard",
+    "applying": "Mise à jour…"
   }
 }

@@ -31,17 +31,16 @@
     "selectedDictionaries": "Vybrané slovníky:",
     "all": "Všude",
     "filterByMenuPath": "Zobrazit jazyky z:",
-    "selectAllShown": "Vybrat všechny zobrazené",
-    "unselectAllShown": "Zrušit výběr zobrazených",
     "selectMoreTitle": "Vybrat více jazyků?",
     "selectMoreText": "Chcete vybrat více jazyků?",
     "selectMoreYes": "Ano",
     "selectMoreNo": "Ne",
     "confirmSelection": "Potvrdit vybrané jazyky",
     "total": "Celkem",
-    "entries": "záznamů"
-  }
-  ,
+    "entries": "záznamů",
+    "selectAllShown": "Vybrat všechny zobrazené",
+    "unselectAllShown": "Zrušit výběr zobrazených"
+  },
   "projectSelectionDialog": {
     "selectDictionaries": "Vybrat jazyky",
     "dialogTitle": "Výběr jazyka",
@@ -55,5 +54,11 @@
   "ui": {
     "clearAll": "Vymazat vše",
     "applyAndClose": "Použít a zavřít"
+  },
+  "update": {
+    "available": "Je k dispozici nová verze aplikace.",
+    "reload": "Aktualizovat",
+    "later": "Později",
+    "applying": "Aktualizace…"
   }
 }
