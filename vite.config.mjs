@@ -64,7 +64,7 @@ export default defineConfig({
         navigateFallback: 'index.html',
       },
       injectManifest: {
-        globPatterns: ['assets/*', 'favicons/*', 'screenshots/*', 'data/*.json', '*.{js,css,html,webmanifest}'],
+        globPatterns: ['assets/*', 'favicons/*', 'screenshots/*', '*.{js,css,html,webmanifest}'],
         maximumFileSizeToCacheInBytes: 100000000, //100mb file limit
       },
       manifest: {

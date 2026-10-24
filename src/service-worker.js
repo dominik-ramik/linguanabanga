@@ -1,6 +1,7 @@
 import { createHandlerBoundToURL, precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
-import { StaleWhileRevalidate, CacheFirst } from 'workbox-strategies';
+import { StaleWhileRevalidate, CacheFirst } from 'workbox-strategies'
+import { BroadcastUpdatePlugin } from 'workbox-broadcast-update' // npm i -D workbox-broadcast-update
 import { version } from '@/../package.json'
 import { normalizeURLPathname } from '@/utils/normalizeURLPathname.js'
 import { AdaptiveConcurrency } from '@/utils/AdaptiveConcurrency.js'
@@ -10,7 +11,6 @@ const STALE_ASSETS_CACHE = "stale-assets";
 const DATA_JSON_CACHE = "data-json";
 const OTHER_ASSETS_CACHE = "other-assets";
 const GOOGLE_APIS_CACHE = "google-apis";
-const DEMOTED_AT_HEADER = "x-ln-demoted-at"; // set on entries moved to the stale cache; the janitor ages them from this moment
 
 const VERSION = version;
 console.log("version", VERSION);
@@ -33,6 +33,12 @@ console.log("version", VERSION);
  *    newer reconcile, so the UI can never be left "preparing" forever.
  *  - The page heartbeat (NG_CACHE_PING) keeps the worker alive during long downloads and lets it ask for the config again
  *    (NG_CACHE_NEED_CONFIG) if the browser killed it.
+ *  - What the asset caches contain is tracked in an IndexedDB index (store `cached-assets`, mirrored in memory). The Cache API
+ *    is NEVER listed with Cache.keys() on the asset caches: with tens of thousands of entries Chromium fails with
+ *    "Operation too large". Every cache mutation (download, promote/demote, janitor, clear) updates the index, written AFTER
+ *    the cache write succeeded and in the same IndexedDB transaction as the todo list. Self-healing: an item that is in the
+ *    cache but missing from the index is detected by a cache.match() before downloading it; an index entry whose bytes are
+ *    gone is dropped when a move finds nothing. Existing installs get their index built once (see migrateIndexOnce).
  */
 
 // Tunables. `self.LN_CACHE_TUNING` exists only so tests can shorten the timers.
@@ -47,6 +53,8 @@ const TUNING = Object.assign({
     outageAfterConsecutive: 3,        // consecutive transient failures of distinct files that switch to single-probe mode
     outageBackoffStartMs: 1000,
     outageBackoffMaxMs: 30000,
+    healthProbeTimeoutMs: 5000,       // is the server reachable at all? (HEAD on the site root)
+    serverOkMs: 30000,                // after a healthy probe, failures count against the file, not against the connection
     retryAfterMaxMs: 120000,
     retryPassWaitsMs: [20000, 60000, 180000, 300000],
     requestTimeoutBaseMs: 60000,
@@ -57,6 +65,7 @@ const TUNING = Object.assign({
     persistIntervalMs: 1000,
     missingRetryMs: 60 * 60 * 1000,
     exhaustedCooldownMs: 10 * 60 * 1000,
+    prepareUpdateWindowMs: 20000,       // after NG_PREPARE_UPDATE the worker stays quiet (no downloads, no keep-alive) for this long
     keepAliveMs: 70000,                 // each heartbeat holds the worker alive for up to this long (covers throttled background-tab timers)
     janitorMaxAgeDays: 7,
     janitorEveryMs: 60 * 60 * 1000,
@@ -80,7 +89,14 @@ let reconcilePending = 0;
 let reconcileChain = Promise.resolve();
 let exhaustedAt = 0;             // when the last run ended with failures; heartbeats do not restart it for a while
 let lastJanitorAt = 0;
+let resumeWanted = false;        // true only when a run ended early (failed / interrupted by an update): heartbeats may restart it
+let updatingUntil = 0;           // a new version is about to replace this worker: stay quiet until then
+let deferredReconcileTimer = null;
 let communicationPort = null;    // for app <-> sw messaging (legacy; messages are broadcast through the Clients API)
+
+function isUpdating() {
+    return Date.now() < updatingUntil;
+}
 
 function sameProjects(a, b) {
     if (!a && !b) return true;
@@ -119,20 +135,25 @@ function postToApp(msg) {
 // ---------------------------------------------------------------------------------------------------------------------
 // Persistent todo list (IndexedDB). One connection, bulk writes. The in-memory map is the working copy.
 // Records: { path, size, missingAt? }   (missingAt = ms timestamp of the last 404/410 for that file)
+// The same database also holds the cached-assets index (see below) and a tiny meta store.
 // ---------------------------------------------------------------------------------------------------------------------
 const IDB_DB_NAME = 'lingua-cache-db';
+const IDB_VERSION = 2;
 const IDB_STORE = 'todo-assets';
+const IDB_CACHED = 'cached-assets';   // index of the asset caches: { path, size, state: 'active' | 'stale', at }  (at = when it entered that state)
+const IDB_META = 'meta';              // { key, value }
+const META_INDEX_READY = 'cachedIndexReady';
 
 let dbPromise = null;
 function openDb() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open(IDB_DB_NAME, 1);
+        const req = indexedDB.open(IDB_DB_NAME, IDB_VERSION);
         req.onupgradeneeded = (e) => {
             const db = e.target.result;
-            if (!db.objectStoreNames.contains(IDB_STORE)) {
-                db.createObjectStore(IDB_STORE, { keyPath: 'path' });
-            }
+            if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE, { keyPath: 'path' });
+            if (!db.objectStoreNames.contains(IDB_CACHED)) db.createObjectStore(IDB_CACHED, { keyPath: 'path' });
+            if (!db.objectStoreNames.contains(IDB_META)) db.createObjectStore(IDB_META, { keyPath: 'key' });
         };
         req.onsuccess = () => {
             const db = req.result;
@@ -145,22 +166,46 @@ function openDb() {
     return dbPromise;
 }
 
-async function idbGetAll() {
+async function idbGetAll(store = IDB_STORE) {
     const db = await openDb();
     return new Promise((resolve, reject) => {
-        const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).getAll();
+        const req = db.transaction(store, 'readonly').objectStore(store).getAll();
         req.onsuccess = () => resolve(req.result || []);
         req.onerror = () => reject(req.error);
     });
 }
 
-async function idbWrite(puts, deletes) {
+// Todo list and cached-assets index are always written together, in ONE transaction.
+async function idbWrite(puts, deletes, cachedPuts = [], cachedDeletes = []) {
     const db = await openDb();
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(IDB_STORE, 'readwrite');
-        const store = tx.objectStore(IDB_STORE);
-        for (const rec of puts) store.put(rec);
-        for (const path of deletes) store.delete(path);
+        const tx = db.transaction([IDB_STORE, IDB_CACHED], 'readwrite');
+        const todo = tx.objectStore(IDB_STORE);
+        const cached = tx.objectStore(IDB_CACHED);
+        for (const rec of puts) todo.put(rec);
+        for (const path of deletes) todo.delete(path);
+        for (const rec of cachedPuts) cached.put(rec);
+        for (const path of cachedDeletes) cached.delete(path);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+    });
+}
+
+async function idbGetMeta(key) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const req = db.transaction(IDB_META, 'readonly').objectStore(IDB_META).get(key);
+        req.onsuccess = () => resolve(req.result ? req.result.value : undefined);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function idbSetMeta(key, value) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_META, 'readwrite');
+        tx.objectStore(IDB_META).put({ key, value });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error);
@@ -173,6 +218,14 @@ const pendingPuts = new Map();   // path -> record, not yet written to IndexedDB
 const pendingDeletes = new Set();
 let persistChain = Promise.resolve();
 let persistTimer = null;
+
+// Index of what the asset caches contain (path -> { path, size, state, at }); the in-memory map is the working copy.
+const cachedMap = new Map();
+const cachedPendingPuts = new Map();     // not yet written to IndexedDB
+const cachedPendingDeletes = new Set();
+let cachedLoadPromise = null;
+let indexMigrated = false;
+let migrationPromise = null;
 
 async function loadTodo() {
     if (todoLoaded) return;
@@ -199,22 +252,102 @@ function todoRemove(path) {
 }
 
 function schedulePersist() {
-    if (pendingPuts.size + pendingDeletes.size >= TUNING.persistEvery) { flushTodo(); return; }
+    if (pendingPuts.size + pendingDeletes.size + cachedPendingPuts.size + cachedPendingDeletes.size >= TUNING.persistEvery) { flushTodo(); return; }
     if (!persistTimer) persistTimer = setTimeout(() => { persistTimer = null; flushTodo(); }, TUNING.persistIntervalMs);
 }
 
 function flushTodo() {
     if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
     persistChain = persistChain.then(async () => {
-        if (!pendingPuts.size && !pendingDeletes.size) return;
+        if (!pendingPuts.size && !pendingDeletes.size && !cachedPendingPuts.size && !cachedPendingDeletes.size) return;
         const puts = [...pendingPuts.values()];
         const deletes = [...pendingDeletes];
+        const cachedPuts = [...cachedPendingPuts.values()];
+        const cachedDeletes = [...cachedPendingDeletes];
         pendingPuts.clear();
         pendingDeletes.clear();
-        try { await idbWrite(puts, deletes); }
-        catch (e) { console.error('[SW] persisting todo list failed (non-fatal; reconcile recomputes it)', e); }
+        cachedPendingPuts.clear();
+        cachedPendingDeletes.clear();
+        try { await idbWrite(puts, deletes, cachedPuts, cachedDeletes); }
+        catch (e) { console.error('[SW] persisting todo list / cache index failed (non-fatal; reconcile and the self-healing checks recompute it)', e); }
     });
     return persistChain;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Cached-assets index API
+// ---------------------------------------------------------------------------------------------------------------------
+function loadCachedIndex() {
+    if (!cachedLoadPromise) {
+        cachedLoadPromise = idbGetAll(IDB_CACHED).then((rows) => {
+            for (const r of rows) {
+                if (cachedPendingPuts.has(r.path) || cachedPendingDeletes.has(r.path)) continue;   // a newer in-memory change wins
+                if (!cachedMap.has(r.path)) cachedMap.set(r.path, { path: r.path, size: r.size || 0, state: r.state, at: r.at || 0 });
+            }
+        }).catch((e) => console.error('[SW] could not read the cached-assets index from IndexedDB (continuing with an empty one)', e));
+    }
+    return cachedLoadPromise;
+}
+
+function cachedSet(path, size, state) {
+    const rec = { path, size: size || 0, state, at: Date.now() };
+    cachedMap.set(path, rec);
+    cachedPendingDeletes.delete(path);
+    cachedPendingPuts.set(path, rec);
+    schedulePersist();
+}
+
+function cachedRemove(path) {
+    if (!cachedMap.delete(path) && !cachedPendingPuts.has(path)) return;
+    cachedPendingPuts.delete(path);
+    cachedPendingDeletes.add(path);
+    schedulePersist();
+}
+
+function cachedPaths(state) {
+    const out = [];
+    for (const r of cachedMap.values()) if (r.state === state) out.push(r.path);
+    return out;
+}
+
+// Builds the index for installs that predate it (one time). Small caches can still be listed; for caches that are too large
+// to list ("Operation too large") the index is rebuilt by probing the assets the page told us about.
+// Assets that are in a cache but no longer part of the dictionary cannot be found this way; they stay as unreferenced
+// storage until the user clears the offline data.
+function migrateIndexOnce(assets) {
+    if (indexMigrated) return Promise.resolve();
+    if (!migrationPromise) migrationPromise = doMigrateIndex(assets).finally(() => { migrationPromise = null; });
+    return migrationPromise;
+}
+
+async function doMigrateIndex(assets) {
+    try {
+        if (await idbGetMeta(META_INDEX_READY)) { indexMigrated = true; return; }
+    } catch (e) { /* IndexedDB unavailable: rebuild in memory */ }
+
+    const active = await caches.open(ACTIVE_ASSETS_CACHE);
+    const stale = await caches.open(STALE_ASSETS_CACHE);
+    try {
+        for (const [cache, state] of [[active, 'active'], [stale, 'stale']]) {
+            for (const r of await cache.keys()) {
+                const path = new URL(r.url).pathname;
+                if (!cachedMap.has(path)) cachedSet(path, 0, state);
+            }
+        }
+    } catch (e) {
+        if (!Array.isArray(assets) || !assets.length) return;       // cannot rebuild without the asset list: try again later
+        console.warn('[SW] asset cache too large to list, rebuilding the index by probing known assets', e && e.message);
+        await mapLimit(assets, TUNING.moveConcurrency, async (a) => {
+            if (cachedMap.has(a.path)) return;
+            try {
+                if (await active.match(a.path)) cachedSet(a.path, a.size, 'active');
+                else if (await stale.match(a.path)) cachedSet(a.path, a.size, 'stale');
+            } catch (err) { /* ignore a single failed probe */ }
+        });
+    }
+    await flushTodo();
+    try { await idbSetMeta(META_INDEX_READY, 1); } catch (e) { /* ignore */ }
+    indexMigrated = true;
 }
 
 function isRecentlyMissing(rec, now = Date.now()) {
@@ -234,22 +367,18 @@ function missingRecords() {
 // ---------------------------------------------------------------------------------------------------------------------
 // Cache helpers
 // ---------------------------------------------------------------------------------------------------------------------
-function withHeader(res, name, value) {
-    const headers = new Headers(res.headers);
-    headers.set(name, value);
-    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
-}
-
-// Move a cached entry between two already-open cache handles (streams the body, no buffering).
-// Uses the original Request object as the key to guarantee an exact match on put/delete.
-async function moveCacheEntry(srcCache, dstCache, request, stampDemotion) {
+// Move a cached entry between two already-open cache handles (streams the body, no buffering) and record the new state in the
+// index. `path` is the same string that was used as the key for cache.put(), so match/put/delete always agree.
+async function moveCacheEntry(srcCache, dstCache, path, toState) {
     try {
-        const res = await srcCache.match(request);
-        if (!res) return false;
-        await dstCache.put(request, stampDemotion ? withHeader(res, DEMOTED_AT_HEADER, String(Date.now())) : res);
-        return await srcCache.delete(request);
+        const res = await srcCache.match(path);
+        if (!res) { cachedRemove(path); return false; }           // the index said it was there, the cache disagrees: heal the index
+        await dstCache.put(path, res);
+        const prev = cachedMap.get(path);
+        cachedSet(path, prev ? prev.size : 0, toState);           // `at` = moment it entered this state (the janitor ages from it)
+        return await srcCache.delete(path);
     } catch (e) {
-        console.error('[SW] moveCacheEntry error for', request.url || request, e);
+        console.error('[SW] moveCacheEntry error for', path, e);
         return false;
     }
 }
@@ -266,28 +395,22 @@ async function mapLimit(items, limit, fn, shouldStop) {
 }
 
 // Janitor: remove stale assets that were demoted more than maxAgeDays ago.
-// Age counts from the demotion (header), NOT from the download date. Legacy entries without the header get a full grace period.
+// Age counts from the demotion (`at` in the index), NOT from the download date. Entries of a migrated install get a full grace period.
 async function janitorTask(maxAgeDays = TUNING.janitorMaxAgeDays) {
     try {
+        await loadCachedIndex();
         const staleCache = await caches.open(STALE_ASSETS_CACHE);
-        const requests = await staleCache.keys();
-        const now = Date.now();
-        for (const req of requests) {
+        const cutoff = Date.now() - maxAgeDays * 24 * 3600 * 1000;
+        const expired = [];
+        for (const r of cachedMap.values()) if (r.state === 'stale' && r.at < cutoff) expired.push(r.path);
+        await mapLimit(expired, TUNING.moveConcurrency, async (path) => {
             try {
-                const res = await staleCache.match(req);
-                if (!res) continue;
-                const demotedAt = Number(res.headers.get(DEMOTED_AT_HEADER));
-                if (!demotedAt) {
-                    await staleCache.put(req, withHeader(res, DEMOTED_AT_HEADER, String(now)));
-                    continue;
-                }
-                if (now - demotedAt > maxAgeDays * 24 * 3600 * 1000) {
-                    await staleCache.delete(req);
-                }
+                await staleCache.delete(path);
+                cachedRemove(path);
             } catch (e) {
-                // ignore entry errors
+                // ignore entry errors: it is retried on the next run
             }
-        }
+        });
     } catch (e) {
         // ignore janitor failures
     }
@@ -359,6 +482,8 @@ async function fetchAndStore(run, item, cache) {
     const timer = setTimeout(() => { timedOut = true; ac.abort(); },
         TUNING.requestTimeoutBaseMs + (item.size || 0) * TUNING.requestTimeoutMsPerByte);
     try {
+        // Already cached but missing from the index (worker killed before the index was written, or a migrated install)?
+        if (await cache.match(item.path)) return { kind: 'already' };
         const res = await fetch(item.path, { signal: ac.signal });
         if (!res.ok) {
             return { kind: 'http', status: res.status, retryAfterMs: parseRetryAfter(res.headers.get('retry-after')) };
@@ -389,6 +514,42 @@ function scheduleItemRetry(run, item, delayMs) {
     run.delayed.push({ at: Date.now() + delayMs, item });
 }
 
+// "Is the server reachable?" Asked only when several different files failed in a row. If it answers, the failures are about
+// those files (they burn their attempts and end up in a retry pass); if it does not, it is an outage and we wait for it.
+async function probeHealth() {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), TUNING.healthProbeTimeoutMs);
+    try {
+        const res = await fetch(new URL('/', location.origin).href, { method: 'HEAD', cache: 'no-store', signal: ac.signal });
+        return res.status < 500 && res.status !== 429;
+    } catch (e) {
+        return false;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+function inOutage(run, now) {
+    return run.consec >= TUNING.outageAfterConsecutive && now >= run.serverOkUntil;
+}
+
+function startHealthCheck(run) {
+    if (run.verifying || Date.now() < run.pauseUntil) return;
+    run.verifying = true;
+    probeHealth().then((ok) => {
+        run.verifying = false;
+        if (run.cancelled) return;
+        if (ok) {
+            run.serverOkUntil = Date.now() + TUNING.serverOkMs;
+            resetStreak(run);
+        } else {
+            run.backoffMs = run.backoffMs ? Math.min(TUNING.outageBackoffMaxMs, run.backoffMs * 2) : TUNING.outageBackoffStartMs;
+            run.pauseUntil = Date.now() + jitter(run.backoffMs);
+        }
+        wakeRun(run);
+    });
+}
+
 function resetStreak(run) {
     run.failStreak.clear();
     run.consec = 0;
@@ -405,6 +566,17 @@ function handleOutcome(run, item, out) {
         resetStreak(run);
         ctl.recordSuccess(item.size || 1, now);
         todoRemove(item.path);
+        cachedSet(item.path, item.size, 'active');            // index is written after the cache write succeeded
+        emitProgress(run, false);
+        return;
+    }
+    if (out.kind === 'already') {                              // found in the cache: nothing was transferred, do not skew the throughput estimate
+        run.processed++;
+        run.bytesDone += item.size || 0;
+        resetStreak(run);
+        ctl.recordNeutral(now);
+        todoRemove(item.path);
+        cachedSet(item.path, item.size, 'active');
         emitProgress(run, false);
         return;
     }
@@ -442,20 +614,14 @@ function handleOutcome(run, item, out) {
     const status = out.kind === 'http' ? out.status : 0;
     const hard = status === 429 || status === 503;
     ctl.recordError(hard ? String(status) : out.kind === 'http' ? '5xx' : out.kind, now);
-    // An outage means failures across several DIFFERENT files in a row. One stubborn file must not look like an outage,
-    // otherwise its attempts would never run out.
+    // Several DIFFERENT files failing in a row may be an outage; the health probe decides. One stubborn file never counts as one.
     run.failStreak.add(item.path);
     run.consec = run.failStreak.size;
-    const outage = run.consec >= TUNING.outageAfterConsecutive;
     if (out.retryAfterMs) run.pauseUntil = Math.max(run.pauseUntil, now + out.retryAfterMs);
-    if (outage && (now >= run.pauseUntil || !run.backoffMs)) {
-        // escalate once per pause window (a burst of failures from requests that were already in flight counts once)
-        run.backoffMs = run.backoffMs ? Math.min(TUNING.outageBackoffMaxMs, run.backoffMs * 2) : TUNING.outageBackoffStartMs;
-        run.pauseUntil = Math.max(run.pauseUntil, now + jitter(run.backoffMs));
-    }
-    if (outage) {
-        // blame the connection/server, not the file: requeue without burning the item's attempts
+    if (inOutage(run, now)) {
+        // do not burn the item's attempts while we find out whether the server is reachable
         run.queue.push(item);
+        startHealthCheck(run);
     } else {
         item.attempts++;
         if (item.attempts >= TUNING.maxItemAttempts) run.failed.add(item);
@@ -493,7 +659,7 @@ async function runDownload(run) {
         for (let i = run.delayed.length - 1; i >= 0; i--) {
             if (run.delayed[i].at <= now) run.queue.push(run.delayed.splice(i, 1)[0].item);
         }
-        const outage = run.consec >= TUNING.outageAfterConsecutive;
+        const outage = inOutage(run, now);
         run.phase = !isOnline() ? 'offline' : (now < run.pauseUntil || outage) ? 'backoff' : 'running';
 
         if (!run.queue.length && !run.delayed.length && run.inflight === 0) {
@@ -505,12 +671,14 @@ async function runDownload(run) {
             if (run.cancelled) break;
             for (const item of run.failed) { item.attempts = 0; run.queue.push(item); }
             run.failed.clear();
-            resetStreak(run); run.pauseUntil = 0;
+            resetStreak(run); run.pauseUntil = 0; run.serverOkUntil = 0;
             continue;
         }
 
-        if (isOnline() && now >= run.pauseUntil) {
-            const limit = outage ? 1 : Math.min(ctl.limit, max);                 // outage: a single probe request
+        if (outage) {
+            if (isOnline() && now >= run.pauseUntil) startHealthCheck(run);      // outage: no data requests, only a cheap reachability probe
+        } else if (isOnline() && now >= run.pauseUntil) {
+            const limit = Math.min(ctl.limit, max);
             while (run.inflight < limit && run.queue.length) launch(run, run.queue.shift(), cache);
         }
         emitProgress(run, false);
@@ -530,7 +698,10 @@ async function runDownload(run) {
 async function finalizeRun(run) {
     await flushTodo();
     if (activeRun === run) activeRun = null;
-    if (run.cancelReason === 'superseded') return;                  // a newer reconcile owns the UI state now
+    if (run.cancelReason === 'superseded') {
+        if (isUpdating()) resumeWanted = true;       // interrupted by an update announcement: resume if this worker survives
+        return;
+    }                  // a newer reconcile owns the UI state now
 
     const missing = missingRecords();
     const base = {
@@ -541,13 +712,16 @@ async function finalizeRun(run) {
         postToApp({ type: 'NG_CACHE_STORAGE_FULL', ...base });
     } else if (run.crashed) {
         exhaustedAt = Date.now();
+        resumeWanted = true;
         postToApp({ type: 'NG_CACHE_INCOMPLETE', reason: 'error', ...base });
     } else if (run.cancelReason) {
         postToApp({ type: 'NG_CACHE_INCOMPLETE', reason: run.cancelReason, ...base });
     } else if (run.exhausted || run.failed.size) {
         exhaustedAt = Date.now();
+        resumeWanted = true;
         postToApp({ type: 'NG_CACHE_INCOMPLETE', reason: 'failed', ...base });
     } else {
+        resumeWanted = false;
         postToApp({ type: 'NG_CACHE_COMPLETED', ...base });
     }
 }
@@ -566,7 +740,7 @@ function startRun() {
         delayed: [],
         failed: new Set(),
         missing: new Set(),
-        inflight: 0, consec: 0, failStreak: new Set(), backoffMs: 0, pauseUntil: 0,
+        inflight: 0, consec: 0, failStreak: new Set(), backoffMs: 0, pauseUntil: 0, serverOkUntil: 0, verifying: false,
         processed: 0, total: items.length,
         bytesDone: 0, bytesTotal: items.reduce((s, i) => s + i.size, 0),
         maxConcurrency: maxConcurrencyFor(config && config.protocol),
@@ -618,7 +792,12 @@ async function doReconcile(gen, reason) {
     const cfg = config;
     if (!cfg) return;
     const superseded = () => gen !== reconcileGeneration;
-    postToApp({ type: 'NG_CACHE_INITIATED', reason });
+    // Heartbeat/online resumes are "quiet": the page hears about them only if a download really starts, so an idle
+    // re-check can never make the progress UI flash.
+    const quiet = reason === 'resume' || reason === 'online';
+    console.log('[SW] reconcile:', reason);
+    resumeWanted = false;
+    if (!quiet) postToApp({ type: 'NG_CACHE_INITIATED', reason });
 
     const { selectedProjects, languageVersion, preloadableAssets, autoOfflineReady } = cfg;
 
@@ -637,24 +816,27 @@ async function doReconcile(gen, reason) {
     // Safety guard: projects selected but nothing required (e.g. language mismatch, or a text-only dictionary):
     // do not demote anything. Nothing to download either, so report completion instead of leaving the UI waiting.
     if (selectedProjects.length > 0 && requiredSet.size === 0) {
-        postToApp({ type: 'NG_CACHE_COMPLETED', total: 0, processed: 0, failed: 0, missing: 0, missingPaths: [], note: 'no-assets' });
+        if (!quiet) postToApp({ type: 'NG_CACHE_COMPLETED', total: 0, processed: 0, failed: 0, missing: 0, missingPaths: [], note: 'no-assets' });
         return;
     }
 
     const active = await caches.open(ACTIVE_ASSETS_CACHE);
     const stale = await caches.open(STALE_ASSETS_CACHE);
-    const pathOf = (r) => new URL(r.url).pathname;
-    const activeRequests = await active.keys();
-    const staleRequests = await stale.keys();
 
-    // Promote stale -> active if required, demote active -> stale if not (bounded parallelism, original Request objects as keys)
-    const toPromote = staleRequests.filter((r) => requiredSet.has(pathOf(r)));
-    const toDemote = activeRequests.filter((r) => !requiredSet.has(pathOf(r)));
-    await mapLimit(toPromote, TUNING.moveConcurrency, (r) => moveCacheEntry(stale, active, r, false), superseded);
-    await mapLimit(toDemote, TUNING.moveConcurrency, (r) => moveCacheEntry(active, stale, r, true), superseded);
+    // What each cache holds comes from the IndexedDB index. Cache.keys() is deliberately NOT used here: on caches with tens of
+    // thousands of entries it fails with "Operation too large".
+    await loadCachedIndex();
+    await migrateIndexOnce(preloadableAssets);
     if (superseded()) return;
 
-    const activePaths = new Set((await active.keys()).map(pathOf));
+    // Promote stale -> active if required, demote active -> stale if not (bounded parallelism)
+    const toPromote = cachedPaths('stale').filter((p) => requiredSet.has(p));
+    const toDemote = cachedPaths('active').filter((p) => !requiredSet.has(p));
+    await mapLimit(toPromote, TUNING.moveConcurrency, (p) => moveCacheEntry(stale, active, p, 'active'), superseded);
+    await mapLimit(toDemote, TUNING.moveConcurrency, (p) => moveCacheEntry(active, stale, p, 'stale'), superseded);
+    if (superseded()) return;
+
+    const activePaths = new Set(cachedPaths('active'));
 
     // Align the persisted todo list with reality: drop what is no longer required or is already cached, add what is missing.
     await loadTodo();
@@ -676,12 +858,13 @@ async function doReconcile(gen, reason) {
     }
 
     if (!autoOfflineReady) {
-        postToApp({ type: 'NG_CACHE_INCOMPLETE', reason: 'disabled', total: 0, processed: 0, failed: 0, missing: 0, missingPaths: [] });
+        if (!quiet) postToApp({ type: 'NG_CACHE_INCOMPLETE', reason: 'disabled', total: 0, processed: 0, failed: 0, missing: 0, missingPaths: [] });
         return;
     }
 
     exhaustedAt = 0;   // an explicit reconcile always gets a fresh set of attempts
-    if (!startRun()) {
+    if (quiet && pendingRecords().length) postToApp({ type: 'NG_CACHE_INITIATED', reason });
+    if (!startRun() && !quiet) {
         const missing = missingRecords();
         postToApp({ type: 'NG_CACHE_COMPLETED', total: 0, processed: 0, failed: 0, missing: missing.length, missingPaths: missing.slice(0, 20).map((r) => r.path) });
     }
@@ -689,10 +872,13 @@ async function doReconcile(gen, reason) {
 
 // Keeps the worker alive while there is work (each heartbeat/config message extends its lifetime a little).
 function keepAliveWhileBusy(maxMs = TUNING.keepAliveMs) {
+    if (isUpdating()) return Promise.resolve();
     return new Promise((resolve) => {
         const started = Date.now();
         const iv = setInterval(() => {
-            if ((!activeRun && !reconcilePending) || Date.now() - started > maxMs) { clearInterval(iv); resolve(); }
+            // Pending waitUntil promises make the browser postpone activating a waiting (new) worker, so release them
+            // as soon as an update is announced.
+            if ((!activeRun && !reconcilePending) || isUpdating() || Date.now() - started > maxMs) { clearInterval(iv); resolve(); }
         }, 250);
     });
 }
@@ -729,6 +915,19 @@ self.addEventListener('message', function (message) {
         return;
     }
 
+    // Sent by the page to THIS (still active) worker right before it tells the new worker to skip waiting. Browsers delay
+    // activating a waiting worker while the active one still has pending event work (our heartbeat keep-alive, a download run
+    // waiting in retry back-off), which made "Reload" look stuck. So: stop the download (it resumes under the new worker via
+    // the page's NEED_CONFIG heartbeat), persist the todo list, release every pending promise and go quiet for a moment.
+    if (msg.type === 'NG_PREPARE_UPDATE') {
+        updatingUntil = Date.now() + TUNING.prepareUpdateWindowMs;
+        const run = cancelActiveRun('superseded');
+        message.waitUntil(run
+            ? Promise.race([run.promise, new Promise((resolve) => setTimeout(resolve, 2000))])
+            : flushTodo());
+        return;
+    }
+
     // The page asks the waiting worker to take over: the user pressed "Reload" in the update prompt, or a page was loaded while
     // an update was waiting (see useServiceWorkerUpdate.js). The page reloads when it sees the controllerchange.
     if (msg.type === 'SKIP_WAITING') {
@@ -738,12 +937,15 @@ self.addEventListener('message', function (message) {
 
     // Requests for list of cached assets
     if (msg.type === "GET_CACHED_ASSETS") {
+        // Answered from the index (never Cache.keys(), which fails on very large caches). Same message format as before.
         message.waitUntil(
-            caches.open(ACTIVE_ASSETS_CACHE).then(async (cache) => {
-                const keys = await cache.keys();
-                const urls = keys.map(k => normalizeURLPathname(location.origin, k.url));
-                postToApp({ type: 'CACHED_ASSETS', assets: urls });
-            }).catch(e => console.error('GET_CACHED_ASSETS error', e))
+            loadCachedIndex()
+                .then(() => migrateIndexOnce(config ? config.preloadableAssets : undefined))
+                .then(() => {
+                    const urls = cachedPaths('active').map((p) => normalizeURLPathname(location.origin, new URL(p, location.origin).href));
+                    postToApp({ type: 'CACHED_ASSETS', assets: urls });
+                })
+                .catch(e => console.error('GET_CACHED_ASSETS error', e))
         );
         return;
     }
@@ -754,6 +956,8 @@ self.addEventListener('message', function (message) {
         message.waitUntil(
             (activeRun ? activeRun.promise : Promise.resolve())
                 .then(() => caches.delete(ACTIVE_ASSETS_CACHE))
+                .then(() => loadCachedIndex())
+                .then(() => { for (const p of cachedPaths('active')) cachedRemove(p); return flushTodo(); })
                 .then(() => { postToApp({ type: 'DATA_ASSETS_CLEARED' }); })
                 .catch(e => console.error('CLEAR_DATA_ASSETS error', e))
         );
@@ -763,6 +967,13 @@ self.addEventListener('message', function (message) {
     // Full config from the page: new selection, new data, auto-offline toggle, or an explicit request
     if (msg.type === 'NG_CACHE_ASSETS' || msg.type === 'NG_PROJECTS_CHANGED') {
         const changed = applyConfig(msg);
+        if (isUpdating()) {
+            // an update is taking over: remember the change, act on it only if this worker turns out to survive
+            if ((msg.type === 'NG_CACHE_ASSETS' || changed) && !deferredReconcileTimer) {
+                deferredReconcileTimer = setTimeout(() => { deferredReconcileTimer = null; enqueueReconcile('deferred'); }, Math.max(0, updatingUntil - Date.now()) + 100);
+            }
+            return;
+        }
         if (msg.type === 'NG_CACHE_ASSETS' || changed) {
             enqueueReconcile(msg.type);
         } else if (activeRun) {
@@ -780,10 +991,11 @@ self.addEventListener('message', function (message) {
             return;
         }
         if (msg.protocol) config.protocol = msg.protocol;
+        if (isUpdating()) return;                                // an update is taking over, do not start new work
         if (activeRun) {
             wakeRun(activeRun);
             emitProgress(activeRun, true);
-        } else if (config.autoOfflineReady && !reconcilePending && (!todoLoaded || pendingRecords().length > 0) &&
+        } else if (resumeWanted && config.autoOfflineReady && !reconcilePending &&
             Date.now() - exhaustedAt > TUNING.exhaustedCooldownMs) {
             enqueueReconcile('resume');
         }
@@ -794,11 +1006,12 @@ self.addEventListener('message', function (message) {
     // Network state messages
     if (msg.type === 'NG_NETWORK_ONLINE') {
         networkOnline = true;
+        if (isUpdating()) return;
         if (activeRun) {
             wakeRun(activeRun);
         } else if (!config) {
             postToApp({ type: 'NG_CACHE_NEED_CONFIG' });
-        } else if (config.autoOfflineReady && !reconcilePending && (!todoLoaded || pendingRecords().length > 0)) {
+        } else if (resumeWanted && config.autoOfflineReady && !reconcilePending) {
             exhaustedAt = 0;
             enqueueReconcile('online');
         }
@@ -819,16 +1032,14 @@ registerRoute(new NavigationRoute(
     createHandlerBoundToURL('index.html'),
 ));
 
-registerRoute(({ url }) => {
-    return url.pathname.endsWith("/data/data.json");
-}, new StaleWhileRevalidate(
-    {
-        cacheName: DATA_JSON_CACHE,
-        cacheableResponse: {
-            statuses: [200],
-        },
-    }
-));
+registerRoute(
+  ({ url }) => url.pathname === '/data/data.json',
+  new StaleWhileRevalidate({
+    cacheName: DATA_JSON_CACHE,
+    fetchOptions: { cache: 'no-cache' },
+    plugins: [new BroadcastUpdatePlugin({ headersToCheck: ['etag', 'last-modified', 'content-length'] })],
+  })
+)
 
 registerRoute(({ url, request, event }) => {
     return url.pathname.startsWith("/") && !url.pathname.startsWith("/data");

@@ -13,6 +13,7 @@ import { i18n } from '@/i18n'
 // Components
 import App from './App.vue'
 import { registerServiceWorker, applyWaitingUpdateOnStartup } from '@/composables/useServiceWorkerUpdate.js'
+import { refreshDictionary } from '@/composables/useDictionary.js'
 
 // Composables
 import { createApp } from 'vue'
@@ -54,10 +55,35 @@ if ('serviceWorker' in navigator) {
         console.error('[SW] NG_CACHE_STORAGE_FULL - storage full while caching');
         localStorage.setItem('ngCacheState', 'STORAGE_FULL');
         break;
+      case 'CACHE_UPDATED': {
+        // workbox-broadcast-update: the service worker's background revalidation of data.json found a newer file than the copy it
+        // served to the page. Load it now instead of waiting for the next page load.
+        let updatedPath = ''
+        try { updatedPath = new URL(msg.payload && msg.payload.updatedURL, location.origin).pathname } catch (e) { /* ignore */ }
+        if (msg.meta === 'workbox-broadcast-update' && updatedPath === '/data/data.json') {
+          console.log('[SW] data.json changed on the server - reloading the dictionary');
+          refreshDictionary();
+        }
+        break;
+      }
       default:
         break;
     }
   });
+}
+
+// Was this page already controlled by a service worker when it loaded? If so, the app's own request for data.json went through
+// the worker (and was cached by it). Only on a first visit the page's request bypassed the worker and the cache must be seeded.
+const wasControlledAtStart = 'serviceWorker' in navigator && !!navigator.serviceWorker.controller
+
+function warmUpDataFile() {
+    const download = () => fetch('/data/data.json').catch(() => { console.log('Error downloading data file') })
+    if (navigator.serviceWorker.controller) { download(); return }
+    // wait until the new worker has claimed this page, otherwise the request would bypass it and nothing would be cached
+    let started = false
+    const go = () => { if (started) return; started = true; download() }
+    navigator.serviceWorker.addEventListener('controllerchange', go, { once: true })
+    setTimeout(go, 5000)
 }
 
 let mounted = false
@@ -96,13 +122,8 @@ if (import.meta.env.PROD) {
                                     messageChannel.port2,
                                 ]);
                     }
-                    // try downloading and caching the data file
-                    try {
-                        fetch("/data/data.json");
-                    }
-                    catch {
-                        console.log("Error downloading data file")
-                    }
+                    // first visit only: download and cache the data file through the service worker
+                    if (!wasControlledAtStart) warmUpDataFile()
                 });
         })
 

@@ -5,6 +5,80 @@ import { normalizeURLPathname } from '@/utils/normalizeURLPathname.js'
 const dictionaryData = shallowRef(null)
 const loadFailed = shallowRef(false)
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Loading data.json
+//
+// The service worker serves data.json stale-while-revalidate: the first answer may be the cached copy. When its background
+// revalidation finds a newer file it posts CACHE_UPDATED (workbox-broadcast-update), main.js calls refreshDictionary(), and the
+// new data replaces the dictionary in place, so a changed data.json shows up without another page load.
+// ---------------------------------------------------------------------------------------------------------------------
+let dictionaryDataUrl = null
+let lastSignature = ''
+let loadChain = Promise.resolve()     // loads and refreshes run one after another, never in parallel
+
+function headerValue(headers, name) {
+    if (!headers) return ''
+    try {
+        const value = typeof headers.get === 'function' ? headers.get(name) : headers[name]
+        return value ? String(value) : ''
+    } catch (e) {
+        return ''
+    }
+}
+
+// Identifies a version of data.json by the same validators the service worker compares (etag, last-modified, content-length).
+// Empty when the server sends neither etag nor last-modified: then a refresh always reloads.
+function signatureOf(headers) {
+    const etag = headerValue(headers, 'etag')
+    const lastModified = headerValue(headers, 'last-modified')
+    if (!etag && !lastModified) return ''
+    return [etag, lastModified, headerValue(headers, 'content-length')].join('|')
+}
+
+function loadDictionaryData({ initial }) {
+    return axios
+        // Same-origin request header: when the request does not pass through the service worker (first visit, no support),
+        // revalidate instead of trusting heuristic HTTP caching. Would need CORS allow-headers if the URL ever became cross-origin.
+        .get(dictionaryDataUrl, { headers: { 'Cache-Control': 'no-cache' } })
+        .then(function (response) {
+            if (typeof response.data !== 'object' || response.data === null) {
+                throw new Error("Dictionary data is not valid JSON");
+            }
+
+            const signature = signatureOf(response.headers)
+            if (!initial && signature && signature === lastSignature) {
+                return    // the revalidation found nothing new
+            }
+            lastSignature = signature
+
+            reloadDictionary(response.data)
+            console.log(dictionaryData.value)
+        })
+        .catch(function (error) {
+            console.error("Failed to load dictionary data:", error);
+            // Only a failed FIRST load sends the app to the "data management" settings page (see App.vue). A failed refresh keeps
+            // the dictionary that is already loaded.
+            if (initial) {
+                loadFailed.value = true;
+            }
+        })
+}
+
+function enqueueLoad(options) {
+    loadChain = loadChain.then(() => loadDictionaryData(options))    // loadDictionaryData never rejects
+    return loadChain
+}
+
+/**
+ * Re-fetches data.json and swaps the dictionary in place if it changed.
+ * Safe to call at any time: before the first load it does nothing (that load reads the already updated cache anyway), and while
+ * a load is running it queues behind it.
+ */
+export function refreshDictionary() {
+    if (!dictionaryDataUrl) return Promise.resolve()
+    return enqueueLoad({ initial: false })
+}
+
 export function useDictionary(jsonDataUrl, langCode) {
     const lang = computed(() => {
         console.log("Dictionary data", dictionaryData.value)
@@ -134,36 +208,8 @@ export function useDictionary(jsonDataUrl, langCode) {
     })
 
 
-    function fetch(jsonDataUrl) {
-        axios
-            .get(jsonDataUrl)
-            .then(function (response) {
-                // handle success
-                if (typeof response.data !== 'object') {
-                    console.error("Dictionary data is not valid JSON")
-                    loadFailed.value = true;
-                    throw new Error("Dictionary data is not valid JSON");
-                }
-
-                reloadDictionary(response.data)
-                console.log(dictionaryData.value)
-
-                window.setTimeout(() => {
-                    //if timeout needed for demo purposes put loadDictionary here
-                }, 4000);
-            })
-            .catch(function (error) {
-                // handle error
-                console.error("Failed to load dictionary data:", error);
-                loadFailed.value = true;
-            })
-            .finally(function () {
-                // always executed
-            })
-    }
-
-
-    fetch(jsonDataUrl)
+    dictionaryDataUrl = jsonDataUrl
+    enqueueLoad({ initial: true })
 
     return {
         preloadableAssets,
@@ -184,7 +230,7 @@ export function useDictionary(jsonDataUrl, langCode) {
 }
 
 export function reloadDictionary(newDictionaryData) {
-    dictionaryData.value = dictionaryData.value = unpackReferences(newDictionaryData)
+    dictionaryData.value = unpackReferences(newDictionaryData)
 }
 
 export function unpackReferences(data, logFn, simulateOnly) {

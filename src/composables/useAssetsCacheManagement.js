@@ -217,13 +217,14 @@ export function useAssetsCacheManagement(langCodeRef, selectedProjectsRef, prelo
                 sendToSW("NG_PROJECTS_CHANGED");
                 break;
             case "NG_CACHE_INITIATED":
-                queueBeingProcessed.value = true;
+                // The service worker is only checking what is missing. That is NOT a download, so the progress bar and the
+                // app-bar circle stay hidden; the first NG_CACHE_PROGRESS (a real run) turns them on.
                 storageFull.value = false;
-                downloadProgressRaw.value = 0;
-                setSummary({ state: 'discovering', processed: 0, total: 0, failed: 0, retrying: 0, reason: '' });
+                setSummary({ state: 'discovering', reason: '' });
                 break;
             case "NG_CACHE_PROGRESS":
-                queueBeingProcessed.value = true; // also set here in case we joined mid-caching after page reload
+                if (!queueBeingProcessed.value) downloadProgressRaw.value = 0; // a fresh run starts from 0
+                queueBeingProcessed.value = true; // a real download is running (also covers joining mid-caching after a page reload)
                 downloadProgressRaw.value = ((data.processed || 0) / (data.total || 1)) * 100;
                 setSummary({
                     state: data.phase || 'running', processed: data.processed || 0, total: data.total || 0,
