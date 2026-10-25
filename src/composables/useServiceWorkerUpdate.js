@@ -166,6 +166,9 @@ export function registerServiceWorker(url = '/service-worker.js') {
 }
 
 function applyUpdate() {
+    window.location.reload();
+    return;
+
     if (isApplying.value) return
     if (!waitingWorker) {            // the new worker is already in control (applied from another tab): just reload
         reloadPage()
@@ -187,7 +190,7 @@ export function useServiceWorkerUpdate() {
     return {
         updateReady,
         isApplying,
-        showPrompt: computed(() => updateReady.value && !dismissed.value),
+        showPrompt: computed(() => updateReady.value && !dismissed.value), //-- let us never show the prompt, just auto-apply on next load
         applyUpdate,
         dismiss,
         checkForUpdate,

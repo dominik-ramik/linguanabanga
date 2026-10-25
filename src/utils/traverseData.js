@@ -59,7 +59,7 @@ export default function traverseData(obj, options, pathHashless, accumulator, pa
                 }
                 else {
                     if (getter) {
-                        dataToReturn.push(...traverseData(element, options, pathHashless, accumulator, obj))
+                        pushResult(dataToReturn, traverseData(element, options, pathHashless, accumulator, obj))
                     }
                     else {
                         traverseData(element, options, pathHashless, accumulator, obj)
@@ -93,7 +93,7 @@ export default function traverseData(obj, options, pathHashless, accumulator, pa
                     }
                 } else {
                     if (getter) {
-                        dataToReturn.push(...traverseData(obj[key], options, pathHashless, (accumulator == "" ? "" : accumulator + ".") + key, obj))
+                        pushResult(dataToReturn, traverseData(obj[key], options, pathHashless, (accumulator == "" ? "" : accumulator + ".") + key, obj))
                     }
                     else {
                         traverseData(obj[key], options, pathHashless, (accumulator == "" ? "" : accumulator + ".") + key, obj)
@@ -105,5 +105,22 @@ export default function traverseData(obj, options, pathHashless, accumulator, pa
 
     if (getter) {
         return dataToReturn
+    }
+}
+
+// Adds the result of a recursive getter call to the accumulated results.
+// The terminal node a path points at can be:
+//   - an array  -> its items are flattened into the results (original behaviour)
+//   - a plain object such as { source: "..." } (e.g. singleimage, gallery, photos) -> kept as ONE item.
+//     Spreading such an object (...obj) used to throw "Spread syntax requires ...iterable[Symbol.iterator] to be a function".
+//   - undefined / null -> nothing to add
+function pushResult(target, result) {
+    if (Array.isArray(result)) {
+        for (let i = 0; i < result.length; i++) {
+            target.push(result[i])   // loop instead of push(...result): no argument-count limit on very large arrays
+        }
+    }
+    else if (result !== undefined && result !== null) {
+        target.push(result)
     }
 }

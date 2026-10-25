@@ -9,6 +9,55 @@ const DEFAULT_FUZZINESS_LEVEL = "strict"
 
 const selectedProjectsGlobal = useStorage('selected-projects', [], localStorage, { mergeDefaults: true })
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Media filter helpers (audio / image "all | with | without" selectors)
+// ---------------------------------------------------------------------------------------------------------------------
+const MEDIA_MODES = ['all', 'with', 'without']
+
+function normalizeMediaMode(mode) {
+    return MEDIA_MODES.includes(mode) ? mode : 'all'
+}
+
+// false (default) = historical behaviour: an entry counts as having media when the layout path yields any non-empty node.
+// true            = stricter: the node must really hold a file (node.source). E.g. a recording node that lists only a
+//                   speaker but no audio file would then NOT count as "with audio".
+const MEDIA_NODE_MUST_HAVE_SOURCE = true
+
+function isFilled(value) {
+    return value != null && value !== ''
+}
+
+function nodeHasSource(value) {
+    if (Array.isArray(value)) return value.some(nodeHasSource)
+    if (value && typeof value === 'object') return nodeHasSource(value.source)
+    return isFilled(value) && (typeof value !== 'string' || value.trim() !== '')
+}
+
+// `values` is what getDataByPath() returns for one layout path: a flat array of the terminal nodes found
+// (strings for file paths, or objects such as { source: ... } when the layout points at the wrapping node).
+function hasMediaValue(values) {
+    const list = Array.isArray(values) ? values : (values == null ? [] : [values])
+    return list.some((value) => MEDIA_NODE_MUST_HAVE_SOURCE ? nodeHasSource(value) : isFilled(value))
+}
+
+const warnedMediaPaths = new Set()
+
+// True when the entry has media at ANY of the given data paths. A path that cannot be read is reported once and counted
+// as "no media" for that entry instead of making the whole results computation throw (which freezes the list).
+function entryHasMedia(entry, paths) {
+    for (const path of paths) {
+        try {
+            if (hasMediaValue(getDataByPath(entry, path))) return true
+        } catch (err) {
+            if (!warnedMediaPaths.has(path)) {
+                warnedMediaPaths.add(path)
+                console.warn('[MediaFilter] Could not read media path "' + path + '", treating it as empty', err)
+            }
+        }
+    }
+    return false
+}
+
 export function useDictionaryFilter(useDictionary) {
     const fuzzinessLevel = useStorage('search-fuzziness-level', DEFAULT_FUZZINESS_LEVEL, localStorage)
 
@@ -141,10 +190,10 @@ export function useDictionaryFilter(useDictionary) {
             if (!viewTypes || !viewTypes.includes('search-result')) continue
             const renderAs = layout.renderAs
             if (renderAs === 'audio') {
-                paths.audio.push(layout.columnName)
+                if (!paths.audio.includes(layout.columnName)) paths.audio.push(layout.columnName)
                 console.debug('[MediaFilter]   Found audio layout:', layout.columnName)
             } else if (renderAs === 'image' || renderAs === 'picture') {
-                paths.image.push(layout.columnName)
+                if (!paths.image.includes(layout.columnName)) paths.image.push(layout.columnName)
                 console.debug('[MediaFilter]   Found image layout:', layout.columnName, '(renderAs:', renderAs, ')')
             }
         }
@@ -204,18 +253,12 @@ export function useDictionaryFilter(useDictionary) {
             const beforeCount = passedFilter.length
             passedFilter = passedFilter.filter((entry) => {
                 if (audioMode !== 'all' && audioPaths.length > 0) {
-                    const hasAudio = audioPaths.some((path) => {
-                        const d = getDataByPath(entry, path)
-                        return d && d.length > 0 && d.some((v) => v != null && v !== '')
-                    })
+                    const hasAudio = entryHasMedia(entry, audioPaths)
                     if (audioMode === 'with' && !hasAudio) return false
                     if (audioMode === 'without' && hasAudio) return false
                 }
                 if (imageMode !== 'all' && imagePaths.length > 0) {
-                    const hasImage = imagePaths.some((path) => {
-                        const d = getDataByPath(entry, path)
-                        return d && d.length > 0 && d.some((v) => v != null && v !== '')
-                    })
+                    const hasImage = entryHasMedia(entry, imagePaths)
                     if (imageMode === 'with' && !hasImage) return false
                     if (imageMode === 'without' && hasImage) return false
                 }
@@ -482,7 +525,7 @@ export function deserializeFilter(json, filter) {
 
     if (filter.mediaFilters) {
         const newMf = (deserializedFilters.media && typeof deserializedFilters.media === 'object')
-            ? { audio: deserializedFilters.media.audio || 'all', image: deserializedFilters.media.image || 'all' }
+            ? { audio: normalizeMediaMode(deserializedFilters.media.audio), image: normalizeMediaMode(deserializedFilters.media.image) }
             : { audio: 'all', image: 'all' }
         console.debug('[MediaFilter] deserializeFilter — applying:', newMf)
         if (isRef(filter.mediaFilters)) {
