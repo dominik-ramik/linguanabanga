@@ -55,11 +55,5 @@
   "ui": {
     "clearAll": "Clear all",
     "applyAndClose": "Apply & Close"
-  },
-  "update": {
-    "available": "A new version of the app is available.",
-    "reload": "Reload",
-    "later": "Later",
-    "applying": "Updating…"
   }
 }

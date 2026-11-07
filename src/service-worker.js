@@ -41,6 +41,21 @@ console.log("version", VERSION);
  *    gone is dropped when a move finds nothing. Existing installs get their index built once (see migrateIndexOnce).
  */
 
+/*
+ * Update strategy – design summary
+ * --------------------------------
+ *  - A new version takes over BY ITSELF: `install` calls skipWaiting() (the worker only becomes "installed" after the whole
+ *    precache is downloaded, so a half-installed version can never take over) and `activate` claims every open page.
+ *    There is no "waiting" state to get stuck in, no prompt and no message from the page involved.
+ *  - The page does nothing about it: it is neither reloaded nor asked anything. An already open page keeps running its (older)
+ *    code until the user reloads or reopens the app, which then loads the new version at once. Consequence: for a while an OLD
+ *    page talks to the NEW worker, so keep the NG_* message protocol backward compatible between two consecutive versions.
+ *  - THIS WORKER MUST NEVER DELAY ITS OWN REPLACEMENT. Browsers postpone activating a new worker while the active one still has
+ *    pending event.waitUntil() work. Therefore every keep-alive in this file goes through holdWhile(), which lets go within
+ *    250 ms of a newer worker appearing (updatePending()). Downloads are paused while an update installs, so they do not
+ *    compete with its precache for bandwidth, and resume afterwards (page heartbeat -> resumeWanted).
+ */
+
 // Tunables. `self.LN_CACHE_TUNING` exists only so tests can shorten the timers.
 const TUNING = Object.assign({
     maxConcurrencyH1: 6,              // browsers open at most 6 connections per host on HTTP/1.1
@@ -65,17 +80,27 @@ const TUNING = Object.assign({
     persistIntervalMs: 1000,
     missingRetryMs: 60 * 60 * 1000,
     exhaustedCooldownMs: 10 * 60 * 1000,
-    prepareUpdateWindowMs: 20000,       // after NG_PREPARE_UPDATE the worker stays quiet (no downloads, no keep-alive) for this long
     keepAliveMs: 70000,                 // each heartbeat holds the worker alive for up to this long (covers throttled background-tab timers)
     janitorMaxAgeDays: 7,
     janitorEveryMs: 60 * 60 * 1000,
     moveConcurrency: 8,
 }, self.LN_CACHE_TUNING || {});
 
-// Claim clients immediately so messages work on very first page load
+// A new version takes over as soon as it has finished installing (see "Update strategy" above).
+self.addEventListener('install', () => {
+    self.skipWaiting();
+});
+
+// Claim clients immediately so messages work on very first page load and an updated worker controls the open pages at once.
 self.addEventListener('activate', (event) => {
     event.waitUntil(self.clients.claim());
 });
+
+// As soon as a newer worker shows up, stop downloading assets so the update's precache gets the bandwidth. Not every browser
+// fires this inside the worker; where it does not, the checks in runDownload and in the page heartbeat do the same a moment later.
+try {
+    self.registration.addEventListener('updatefound', () => { cancelActiveRun('superseded'); });
+} catch (e) { /* not supported: the polling checks cover it */ }
 
 // ---------------------------------------------------------------------------------------------------------------------
 // State
@@ -90,12 +115,40 @@ let reconcileChain = Promise.resolve();
 let exhaustedAt = 0;             // when the last run ended with failures; heartbeats do not restart it for a while
 let lastJanitorAt = 0;
 let resumeWanted = false;        // true only when a run ended early (failed / interrupted by an update): heartbeats may restart it
-let updatingUntil = 0;           // a new version is about to replace this worker: stay quiet until then
-let deferredReconcileTimer = null;
 let communicationPort = null;    // for app <-> sw messaging (legacy; messages are broadcast through the Clients API)
 
-function isUpdating() {
-    return Date.now() < updatingUntil;
+// ---------------------------------------------------------------------------------------------------------------------
+// Update safety: this worker must never delay its own replacement
+// ---------------------------------------------------------------------------------------------------------------------
+// True while a newer worker is installing or waiting to take over this one.
+function updatePending() {
+    const r = self.registration;
+    return !!(r && (r.installing || r.waiting));
+}
+
+// Holds the worker alive (for event.waitUntil) while isBusy() is true, but NEVER while an update is pending and never longer
+// than maxMs. This is the only keep-alive primitive in this file, so no event can outlive the arrival of a newer version.
+function holdWhile(isBusy, maxMs = TUNING.keepAliveMs) {
+    return new Promise((resolve) => {
+        if (updatePending()) { resolve(); return; }
+        const started = Date.now();
+        const iv = setInterval(() => {
+            if (!isBusy() || updatePending() || Date.now() - started > maxMs) { clearInterval(iv); resolve(); }
+        }, 250);
+    });
+}
+
+// Same for a one-off piece of work: keeps the event open until `promise` settles (or an update appears / maxMs pass).
+// The work itself is not cancelled when the hold is released; only the worker's obligation to stay alive for it ends.
+function holdUntilDone(promise, maxMs = TUNING.keepAliveMs) {
+    let done = false;
+    Promise.resolve(promise).then(() => { done = true; }, () => { done = true; });
+    return holdWhile(() => !done, maxMs);
+}
+
+// Keeps the worker alive while a download run or a reconcile is in progress (each heartbeat/config message extends it a little).
+function keepAliveWhileBusy(maxMs = TUNING.keepAliveMs) {
+    return holdWhile(() => !!activeRun || reconcilePending > 0, maxMs);
 }
 
 function sameProjects(a, b) {
@@ -652,6 +705,8 @@ async function runDownload(run) {
     emitProgress(run, true);
 
     while (!run.cancelled) {
+        // a newer version is installing / waiting: stop, free the bandwidth (finalizeRun marks the run resumable)
+        if (updatePending()) { cancelActiveRun('superseded'); break; }
         if (typeof navigator !== 'undefined' && navigator.onLine === true) networkOnline = true;
         const now = Date.now();
 
@@ -699,7 +754,7 @@ async function finalizeRun(run) {
     await flushTodo();
     if (activeRun === run) activeRun = null;
     if (run.cancelReason === 'superseded') {
-        if (isUpdating()) resumeWanted = true;       // interrupted by an update announcement: resume if this worker survives
+        if (updatePending()) resumeWanted = true;       // interrupted by an update: resume if this worker survives (the update failed)
         return;
     }                  // a newer reconcile owns the UI state now
 
@@ -870,19 +925,6 @@ async function doReconcile(gen, reason) {
     }
 }
 
-// Keeps the worker alive while there is work (each heartbeat/config message extends its lifetime a little).
-function keepAliveWhileBusy(maxMs = TUNING.keepAliveMs) {
-    if (isUpdating()) return Promise.resolve();
-    return new Promise((resolve) => {
-        const started = Date.now();
-        const iv = setInterval(() => {
-            // Pending waitUntil promises make the browser postpone activating a waiting (new) worker, so release them
-            // as soon as an update is announced.
-            if ((!activeRun && !reconcilePending) || isUpdating() || Date.now() - started > maxMs) { clearInterval(iv); resolve(); }
-        }, 250);
-    });
-}
-
 function applyConfig(msg) {
     const prev = config;
     const next = {
@@ -915,21 +957,8 @@ self.addEventListener('message', function (message) {
         return;
     }
 
-    // Sent by the page to THIS (still active) worker right before it tells the new worker to skip waiting. Browsers delay
-    // activating a waiting worker while the active one still has pending event work (our heartbeat keep-alive, a download run
-    // waiting in retry back-off), which made "Reload" look stuck. So: stop the download (it resumes under the new worker via
-    // the page's NEED_CONFIG heartbeat), persist the todo list, release every pending promise and go quiet for a moment.
-    if (msg.type === 'NG_PREPARE_UPDATE') {
-        updatingUntil = Date.now() + TUNING.prepareUpdateWindowMs;
-        const run = cancelActiveRun('superseded');
-        message.waitUntil(run
-            ? Promise.race([run.promise, new Promise((resolve) => setTimeout(resolve, 2000))])
-            : flushTodo());
-        return;
-    }
-
-    // The page asks the waiting worker to take over: the user pressed "Reload" in the update prompt, or a page was loaded while
-    // an update was waiting (see useServiceWorkerUpdate.js). The page reloads when it sees the controllerchange.
+    // Kept for pages of OLDER app versions that still ask a waiting worker to take over. The current worker skips waiting by
+    // itself in `install`, so for the current page this is a harmless no-op.
     if (msg.type === 'SKIP_WAITING') {
         self.skipWaiting();
         return;
@@ -938,7 +967,7 @@ self.addEventListener('message', function (message) {
     // Requests for list of cached assets
     if (msg.type === "GET_CACHED_ASSETS") {
         // Answered from the index (never Cache.keys(), which fails on very large caches). Same message format as before.
-        message.waitUntil(
+        message.waitUntil(holdUntilDone(
             loadCachedIndex()
                 .then(() => migrateIndexOnce(config ? config.preloadableAssets : undefined))
                 .then(() => {
@@ -946,32 +975,31 @@ self.addEventListener('message', function (message) {
                     postToApp({ type: 'CACHED_ASSETS', assets: urls });
                 })
                 .catch(e => console.error('GET_CACHED_ASSETS error', e))
-        );
+        ));
         return;
     }
 
     // Clear active data assets
     if (msg.type === "CLEAR_DATA_ASSETS") {
         cancelActiveRun('superseded');
-        message.waitUntil(
+        message.waitUntil(holdUntilDone(
             (activeRun ? activeRun.promise : Promise.resolve())
                 .then(() => caches.delete(ACTIVE_ASSETS_CACHE))
                 .then(() => loadCachedIndex())
                 .then(() => { for (const p of cachedPaths('active')) cachedRemove(p); return flushTodo(); })
                 .then(() => { postToApp({ type: 'DATA_ASSETS_CLEARED' }); })
                 .catch(e => console.error('CLEAR_DATA_ASSETS error', e))
-        );
+        ));
         return;
     }
 
     // Full config from the page: new selection, new data, auto-offline toggle, or an explicit request
     if (msg.type === 'NG_CACHE_ASSETS' || msg.type === 'NG_PROJECTS_CHANGED') {
         const changed = applyConfig(msg);
-        if (isUpdating()) {
-            // an update is taking over: remember the change, act on it only if this worker turns out to survive
-            if ((msg.type === 'NG_CACHE_ASSETS' || changed) && !deferredReconcileTimer) {
-                deferredReconcileTimer = setTimeout(() => { deferredReconcileTimer = null; enqueueReconcile('deferred'); }, Math.max(0, updatingUntil - Date.now()) + 100);
-            }
+        if (updatePending()) {
+            // A newer version is installing / waiting to replace this worker: start no work and hold nothing. The config is
+            // stored; the page sends it again on its next load. Should the update fail, the page heartbeat resumes.
+            resumeWanted = true;
             return;
         }
         if (msg.type === 'NG_CACHE_ASSETS' || changed) {
@@ -991,7 +1019,7 @@ self.addEventListener('message', function (message) {
             return;
         }
         if (msg.protocol) config.protocol = msg.protocol;
-        if (isUpdating()) return;                                // an update is taking over, do not start new work
+        if (updatePending()) return;                                // an update is taking over, do not start new work
         if (activeRun) {
             wakeRun(activeRun);
             emitProgress(activeRun, true);
@@ -1006,7 +1034,7 @@ self.addEventListener('message', function (message) {
     // Network state messages
     if (msg.type === 'NG_NETWORK_ONLINE') {
         networkOnline = true;
-        if (isUpdating()) return;
+        if (updatePending()) return;
         if (activeRun) {
             wakeRun(activeRun);
         } else if (!config) {

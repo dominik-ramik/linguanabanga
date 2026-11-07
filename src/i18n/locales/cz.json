@@ -54,11 +54,5 @@
   "ui": {
     "clearAll": "Vymazat vše",
     "applyAndClose": "Použít a zavřít"
-  },
-  "update": {
-    "available": "Je k dispozici nová verze aplikace.",
-    "reload": "Aktualizovat",
-    "later": "Později",
-    "applying": "Aktualizace…"
   }
 }

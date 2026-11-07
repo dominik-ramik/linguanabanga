@@ -1,4 +1,10 @@
-const cache = {}
+// Normalizes text for accent- and case-insensitive comparison: "Colór" -> "color".
+//
+// The cache is a Map, not a plain object: with `{}` a lookup of "constructor", "toString" or "valueOf"
+// finds Object.prototype members and returns a function instead of a string. It is also capped so that it
+// cannot grow without bound while the user types (every keystroke is a new string).
+const MAX_CACHE_ENTRIES = 250000
+const cache = new Map()
 
 export function removeAccents(text) {
     if (Array.isArray(text)) {
@@ -8,17 +14,17 @@ export function removeAccents(text) {
         return text
     }
 
-    if (cache[text]) {
-        return cache[text]
-    }
+    const key = String(text)
+    let treated = cache.get(key)
 
-    if (!text || text === undefined) {
-        cache[text] = text
-        return text
-    }
+    if (treated === undefined) {
+        treated = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
 
-    let treated = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    cache[text] = treated
+        if (cache.size >= MAX_CACHE_ENTRIES) {
+            cache.clear()
+        }
+        cache.set(key, treated)
+    }
 
     return treated
 }

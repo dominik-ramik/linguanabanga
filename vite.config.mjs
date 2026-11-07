@@ -65,6 +65,7 @@ export default defineConfig({
       },
       injectManifest: {
         globPatterns: ['assets/*', 'favicons/*', 'screenshots/*', '*.{js,css,html,webmanifest}'],
+        globIgnores: ['data/**'],
         maximumFileSizeToCacheInBytes: 100000000, //100mb file limit
       },
       manifest: {

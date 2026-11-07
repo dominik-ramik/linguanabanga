@@ -12,7 +12,7 @@ import { i18n } from '@/i18n'
 
 // Components
 import App from './App.vue'
-import { registerServiceWorker, applyWaitingUpdateOnStartup } from '@/composables/useServiceWorkerUpdate.js'
+import { registerServiceWorker } from '@/composables/useServiceWorkerUpdate.js'
 import { refreshDictionary } from '@/composables/useDictionary.js'
 
 // Composables
@@ -86,28 +86,15 @@ function warmUpDataFile() {
     setTimeout(go, 5000)
 }
 
-let mounted = false
-function mountApp() {
-  if (mounted) return
-  mounted = true
-  app.use(i18n).mount('#app')
-}
+// App-code updates need nothing here: a new service worker installs and takes over by itself, and the new version is served the
+// next time the page is loaded (see useServiceWorkerUpdate.js). So the app can mount right away.
+app.use(i18n).mount('#app')
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  // An update that finished installing while the app was open (or before this load) is applied now, BEFORE the app
-  // mounts: the waiting worker takes over and the page reloads straight into the new version. If nothing is waiting
-  // this resolves immediately and the app starts as usual.
-  applyWaitingUpdateOnStartup().then((reloading) => { if (!reloading) mountApp() }).catch(mountApp)
-  setTimeout(mountApp, 6000) // failsafe, never leave a blank page
-} else {
-  mountApp()
-}
-
-// Register sevice worker
+// Register service worker
 if (import.meta.env.PROD) {
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            registerServiceWorker() // registers, watches for new versions and checks for them periodically (see useServiceWorkerUpdate.js)
+            registerServiceWorker()
             navigator.serviceWorker.ready
                 .then((registration) => {
                     // Open communication channel

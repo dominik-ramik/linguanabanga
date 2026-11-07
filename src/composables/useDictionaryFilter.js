@@ -1,11 +1,16 @@
 import { computed, ref, watch, isRef, unref } from 'vue'
 import getDataByPath from '@/utils/GetDataByPath.js'
 import { useStorage } from '@vueuse/core'
-import { removeAccents } from "@/utils/removeAccents.js"
 import getMainItem from "@/utils/getMainItem.js"
-import Fuse from 'fuse.js'
+import {
+    DEFAULT_SEARCH_MODE,
+    buildTextSearchIndex,
+    compareSortKeys,
+    normalizeQuery,
+    searchText,
+} from '@/utils/textSearch.js'
 
-const DEFAULT_FUZZINESS_LEVEL = "strict"
+const DEFAULT_FUZZINESS_LEVEL = DEFAULT_SEARCH_MODE
 
 const selectedProjectsGlobal = useStorage('selected-projects', [], localStorage, { mergeDefaults: true })
 
@@ -155,15 +160,9 @@ export function useDictionaryFilter(useDictionary) {
             return []
         }
 
-        const data = []
-
-        dictionary.value.tables.forEach((currentTable) => {
-            if (currentTable.meta.tableType == table.value && (currentTable.meta.project === undefined || selectedProjects.value.includes(currentTable.meta.project))) {
-                data.push(...currentTable.data)
-            }
-        })
-
-        return data
+        return dictionary.value.tables
+            .filter((currentTable) => currentTable.meta.tableType == table.value && (currentTable.meta.project === undefined || selectedProjects.value.includes(currentTable.meta.project)))
+            .flatMap((currentTable) => currentTable.data)
     })
 
     //Get current layouts in plain format
@@ -267,161 +266,96 @@ export function useDictionaryFilter(useDictionary) {
             console.debug('[MediaFilter] filterResults — entries after media filter:', passedFilter.length, '(removed', beforeCount - passedFilter.length, ')')
         }
 
-        if (dictionary.value.isReady) {
-            let mainItem = sheetDataDetails().find((mainItemMeta) => table.value == mainItemMeta.tableType && mainItemMeta.type == "main")
-            let mainPath = mainItem?.columnName.replaceAll("#", "")
-
-            passedFilter.sort((a, b) => {
-                let aMainPathData = getDataByPath(a, mainPath)
-                let bMainPathData = getDataByPath(b, mainPath)
-
-                if (!aMainPathData || !bMainPathData || aMainPathData.length == 0 || bMainPathData.length == 0) {
-                    //console.log("Cannot find dataPath:", mainPath, a, b)
-                    return 0
-                }
-
-                return aMainPathData[0].localeCompare(aMainPathData[0])
-            })
-        }
-
+        // Ordering is decided in `results` (see below), not here.
         return passedFilter
     })
 
-    const fuseSearchKeys = computed(() => {
-        //we need to take into account the current layout so we don't search for values that are not displayed
-        let pathsToMatch = []
-        if (dictionary.value && dictionary.value.isReady) {
-            for (const infoKey of Object.keys(sheetDataDetails())) {
-                const info = sheetDataDetails()[infoKey]
-                if (info.tableType == table.value) {
-                    if (info.searchPriority !== "" && info.searchPriority > 0) {
-                        if (currentFlatLayouts.value.includes(info.columnName)) {
-                            let columnNameHashless = info.columnName.replaceAll("#", "")
-                            if (pathsToMatch.find((path) => columnNameHashless === path.name) === undefined) {
-                                pathsToMatch.push({
-                                    name: columnNameHashless,
-                                    priority: 1.0 / parseFloat(info.searchPriority)
-                                })
-                            }
-                        }
-                    }
-                }
+    // Columns the full-text search looks at: every column with a positive `searchPriority` that is also part of the
+    // search-result layout. weight = 1 / searchPriority, so a LOWER priority number is a MORE important column and
+    // ranks higher inside a match tier. (Fuse only understands `weight`; the old `priority` property was silently ignored.)
+    const searchKeys = computed(() => {
+        const details = sheetDataDetails()
+        if (!dictionary.value?.isReady || !Array.isArray(details)) {
+            return []
+        }
+
+        const layoutColumns = new Set(currentFlatLayouts.value ?? [])
+        const weightByPath = new Map()
+
+        for (const info of details) {
+            if (info.tableType != table.value || !layoutColumns.has(info.columnName)) {
+                continue
+            }
+
+            const priority = Number(info.searchPriority)
+            if (!(priority > 0)) {
+                continue
+            }
+
+            const path = info.columnName.replaceAll("#", "")
+            const weight = 1.0 / priority
+            if (weight > (weightByPath.get(path) ?? 0)) {
+                weightByPath.set(path, weight)
             }
         }
 
-        return pathsToMatch
-
+        return [...weightByPath].map(([name, weight]) => ({ name, weight }))
     })
 
-    const actualFuseSearchKeys = computed(() => {
-        // Restrict to "main" column if toggle is ON and a main entry exists
+    const actualSearchKeys = computed(() => {
+        // "Entry starts with" mode searches the main column only
         if (searchMainEntryOnly.value && hasMainEntry.value && dictionary.value?.isReady) {
-            let mainItem = sheetDataDetails().find(
+            const mainItem = sheetDataDetails().find(
                 (meta) => table.value === meta.tableType && meta.type === "main"
-            );
+            )
             if (mainItem) {
-                return [{ name: mainItem.columnName.replaceAll("#", ""), priority: 1 }];
+                return [{ name: mainItem.columnName.replaceAll("#", ""), weight: 1 }]
             }
         }
-        // Fallback to standard configured keys
-        return fuseSearchKeys.value;
+        return searchKeys.value
     })
+
+    // Main-entry text of every entry, computed once per dataset. Used to list entries alphabetically and to break
+    // ties between equally ranked search results (reading it inside a sort comparator is O(n log n) path lookups).
+    const mainEntrySortKeys = computed(() => {
+        const sortKeys = new Map()
+        const details = sheetDataDetails()
+        if (!dictionary.value?.isReady || !Array.isArray(details)) {
+            return sortKeys
+        }
+
+        for (const item of dataToSearch.value) {
+            const main = getMainItem(details, table.value, item)?.[0]
+            sortKeys.set(item, typeof main === "string" ? main : undefined)
+        }
+        return sortKeys
+    })
+
+    // Searchable text of every entry, extracted and normalized once. It is rebuilt only when the data or the
+    // searched columns change, NOT on every keystroke or filter change. Lazy: nothing is built until a text search runs.
+    const searchIndex = computed(() => buildTextSearchIndex(dataToSearch.value, actualSearchKeys.value))
 
     const results = computed(() => {
+        const query = normalizeQuery(text.value)
+        const sortKeys = mainEntrySortKeys.value
+        const getSortKey = (item) => sortKeys.get(item)
 
-        let allResults = []
-
-        if (text.value == "") {
-            //if not searching by text, return values ordered alphabetically by main item
-            allResults = filterResults.value.map((result) => {
-                return { item: result, score: 0, refIndex: result.id }
-            })
-
-            allResults = allResults.sort((a, b) => {
-                let mainA = getMainItem(sheetDataDetails(), table.value, a.item)[0]
-                let mainB = getMainItem(sheetDataDetails(), table.value, b.item)[0]
-
-                // items with undefined main item will get shown at the end of the list
-                if (mainA === undefined) {
-                    return 1
-                }
-                if (mainB === undefined) {
-                    return -1
-                }
-
-                return mainA.localeCompare(mainB)
-            })
-        }
-        else {
-            //default values for fuzzy search with Fuse
-            let fuzziness = 0.5
-            let fidelity = 0.7
-            let cutoffScore = 0.55
-
-            switch (fuzzinessLevel.value) {
-                case "exact":
-                    fuzziness = 0.0
-                    fidelity = 1.0
-                    cutoffScore = 0.55
-                    break;
-                case "strict":
-                    fuzziness = 0.4
-                    fidelity = 0.5
-                    cutoffScore = 0.7
-                    break;
-                case "liberal":
-                    fuzziness = 0.7
-                    fidelity = 0.4
-                    cutoffScore = 0.9
-                    break;
-
-                default:
-                    break;
-            }
-
-            let minMatchCharLength = 0
-            if (text.value) {
-                minMatchCharLength = (text.value.length > 3 ? Math.round(text.value.length * fidelity) : text.value.length - 1)
-            }
-
-            const options = {
-                isCaseSensitive: false,
-                threshold: fuzziness,
-                includeScore: true,
-                shouldSort: true,
-                includeMatches: true,
-                findAllMatches: false,
-                useExtendedSearch: false,
-                ignoreLocation: true,
-                minMatchCharLength: minMatchCharLength,
-                keys: actualFuseSearchKeys.value,
-                getFn: ((obj, path) => {
-                    let value = Fuse.config.getFn(obj, path)
-                    if (Array.isArray(value)) {
-                        return value.map(el => removeAccents(el))
-                    }
-                    else {
-                        return removeAccents(value)
-                    }
-                })
-            }
-
-            const fuse = new Fuse(filterResults.value, options)
-
-            // Base search
-            allResults = fuse.search(removeAccents(text.value)).filter(result => result.score <= cutoffScore)
-
-            // Post-filter: Strict positional matching for main entries
-            if (searchMainEntryOnly.value && hasMainEntry.value) {
-                allResults = allResults.filter(result => {
-                    return result.matches.some(match =>
-                        match.indices.some(indexPair => indexPair[0] === 0)
-                    )
-                })
-            }
+        if (query === "") {
+            //if not searching by text, return values ordered alphabetically by main item (items without one go last)
+            return [...filterResults.value]
+                .sort((a, b) => compareSortKeys(getSortKey(a), getSortKey(b)))
+                .map((item) => ({ item, score: 0, refIndex: item.id, matches: [] }))
         }
 
-        return allResults
+        // Ranked best-first (see utils/textSearch.js for the tiers); exact/strict/liberal only differ in whether and
+        // how loosely the last, typo-tolerant tier is applied.
+        return searchText(searchIndex.value, {
+            query,
+            candidates: filterResults.value,
+            mode: fuzzinessLevel.value,
+            startsWithOnly: searchMainEntryOnly.value && hasMainEntry.value,
+            getSortKey,
+        })
     })
 
     return {
