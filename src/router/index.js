@@ -8,7 +8,8 @@ import AboutDictionary from '@/views/AboutDictionary.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import LanguageSelectorView from '@/views/LanguageSelectorView.vue'
 
-import { inferLocale, isLocaleSupported, setLocale } from "@/i18n"
+import { inferLocale, isLocaleSupported, setLocale, supportedLocales } from "@/i18n"
+import { watch } from 'vue'
 import { useStorage } from '@vueuse/core'
 import { useDictionaryStore } from '@/store/DictionaryStore'
 
@@ -129,5 +130,20 @@ router.beforeEach((to) => {
   // Always return a value
   return true;
 });
+
+function reconcileRouteLocale() {
+  const route = router.currentRoute.value
+  if (route.name && !isLocaleSupported(route.params.locale)) {
+    router.replace({
+      name: route.name,
+      params: { ...route.params, locale: inferLocale() },
+      query: route.query,
+      hash: route.hash,
+    })
+  }
+}
+
+watch(supportedLocales, reconcileRouteLocale, { flush: 'sync' })
+router.afterEach(reconcileRouteLocale)
 
 export default router

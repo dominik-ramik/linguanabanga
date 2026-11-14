@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, shallowRef } from 'vue'
 
 import { createI18n } from 'vue-i18n'
 
@@ -25,6 +25,23 @@ const SUPPORTED_LOCALES = [
     }
 ]
 
+const dictionaryLanguages = shallowRef(null)
+
+export function setDictionaryLanguages(data) {
+    const available = data.general.supportedLanguages
+        .map((language) => language.code)
+        .filter((code) => Object.prototype.hasOwnProperty.call(data.versions, code) && SUPPORTED_LOCALES.some((locale) => locale.code === code))
+
+    if (available.length === 0) {
+        console.warn("Dictionary has no interface language supported by the app")
+    }
+
+    dictionaryLanguages.value = {
+        available,
+        defaultLocale: data.general.defaultLanguageVersion
+    }
+}
+
 export function inferLocale() {
     let persistedLocale = getPersistedLocale()
 
@@ -38,13 +55,19 @@ export function inferLocale() {
         }
     }
 
-    return i18n.global.fallbackLocale.value
+    const dictionaryDefault = dictionaryLanguages.value?.defaultLocale
+    if (isLocaleSupported(dictionaryDefault)) {
+        return dictionaryDefault
+    }
+
+    const fallback = i18n.global.fallbackLocale.value
+    return isLocaleSupported(fallback) ? fallback : supportedLocales.value[0]
 }
 
 function getUserLocale() {
     const locale = window.navigator.language ||
         window.navigator.userLanguage ||
-        i18n.fallbackLocale
+        i18n.global.fallbackLocale.value
 
     return locale.split('-')[0]
 }
@@ -67,6 +90,9 @@ export function isLocaleSupported(locale) {
 }
 
 export const supportedLocales = computed(() => {
+    if (dictionaryLanguages.value?.available.length) {
+        return dictionaryLanguages.value.available
+    }
     return SUPPORTED_LOCALES.map((locale) => locale.code)
 })
 

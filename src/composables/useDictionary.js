@@ -1,6 +1,7 @@
 import { computed, shallowRef } from 'vue'
 import axios from "axios";
 import { normalizeURLPathname } from '@/utils/normalizeURLPathname.js'
+import { setDictionaryLanguages } from '@/i18n'
 
 const dictionaryData = shallowRef(null)
 const loadFailed = shallowRef(false)
@@ -230,7 +231,9 @@ export function useDictionary(jsonDataUrl, langCode) {
 }
 
 export function reloadDictionary(newDictionaryData) {
-    dictionaryData.value = unpackReferences(newDictionaryData)
+    const unpackedData = unpackReferences(newDictionaryData)
+    setDictionaryLanguages(unpackedData)
+    dictionaryData.value = unpackedData
 }
 
 export function unpackReferences(data, logFn, simulateOnly) {

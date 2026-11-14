@@ -9,6 +9,8 @@ It provides multi-access filters and search tools to narrow or find entries, thr
 ## Data format
 Data format: content lives in a simple Excel spreadsheet (XLSX), which allows you to define any type of data or structure you wish to capture in your dictionary; and a plain folder structure for media. You can compile them into a single data.json with the built-in importer.
 
+The interface language is selected from the languages supported by both the app and the loaded data. A previously selected language takes precedence, followed by the browser language; if neither is available, the data's default language is used.
+
 ## Reference implementation
 A live reference implementation is available at https://pvnh.net/linguanabanga
 
